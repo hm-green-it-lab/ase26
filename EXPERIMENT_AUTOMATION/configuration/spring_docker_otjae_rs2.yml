@@ -1,0 +1,16 @@
+extends: spring_docker_jmeter.yml
+
+experiment:
+  type: spring_docker_otjae_rs2
+
+  remote_docker_start:
+    - docker compose -f ${SUT_BASE_DIR}/spring-rest-service/docker-compose.yaml -f ${SUT_BASE_DIR}/spring-rest-service/docker-compose.override.otel.yaml up -d
+    - docker compose -f ${SUT_BASE_DIR}/spring-rest-service/docker-compose_2.yaml -f ${SUT_BASE_DIR}/spring-rest-service/docker-compose.override.otel-2.yaml up -d
+    - docker update --cpuset-cpus="0-19,40-59" --cpuset-mems="0,1" spring-rest-energy-test
+    - docker update --cpuset-cpus="20-39,60-79" --cpuset-mems="2,3" spring-rest-energy-test-2
+  remote_docker_stop:
+    - docker compose -f ${SUT_BASE_DIR}/spring-rest-service/docker-compose_2.yaml -f ${SUT_BASE_DIR}/spring-rest-service/docker-compose.override.otel-2.yaml down
+    - docker compose -f ${SUT_BASE_DIR}/spring-rest-service/docker-compose.yaml -f ${SUT_BASE_DIR}/spring-rest-service/docker-compose.override.otel.yaml down
+  remote_docker_logs:
+    - docker compose -f ${SUT_BASE_DIR}/spring-rest-service/docker-compose.yaml logs
+    - docker compose -f ${SUT_BASE_DIR}/spring-rest-service/docker-compose_2.yaml logs

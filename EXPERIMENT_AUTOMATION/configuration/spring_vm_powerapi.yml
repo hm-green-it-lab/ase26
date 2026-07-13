@@ -1,0 +1,9 @@
+extends: spring_vm_jmeter.yml
+experiment:
+  type: spring_vm_powerapi
+
+  # Tool runs on the host / hypervisor via docker-compose override
+  host_tool_start: docker compose -f ${SUT_BASE_DIR}/spring-rest-service/docker-compose.override.powerapi.yaml up -d
+  host_tool_stop: docker compose -f ${SUT_BASE_DIR}/spring-rest-service/docker-compose.override.powerapi.yaml down
+  host_tool_logs: docker compose -f ${SUT_BASE_DIR}/spring-rest-service/docker-compose.override.powerapi.yaml logs
+

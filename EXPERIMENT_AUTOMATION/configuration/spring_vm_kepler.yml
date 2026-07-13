@@ -1,0 +1,15 @@
+extends: spring_vm_jmeter.yml
+experiment:
+  type: spring_vm_kepler
+
+  http_logger_jar_path: ${LOCAL_BASE_DIR}/http-logger-1.0-runner.jar
+  http_logger_jar_url: ${HTTP_LOGGER_JAR_URL}
+
+  # Kepler metrics are exposed on the host (hypervisor) where the tool runs
+  http_logger_url: http://${SUT_HOST}:28282/metrics
+
+  # Tool runs on the host / hypervisor via docker-compose override
+  host_tool_start: docker compose -f ${SUT_BASE_DIR}/spring-rest-service/docker-compose.override.kepler.yaml up -d
+  host_tool_stop: docker compose -f ${SUT_BASE_DIR}/spring-rest-service/docker-compose.override.kepler.yaml down
+  host_tool_logs: docker compose -f ${SUT_BASE_DIR}/spring-rest-service/docker-compose.override.kepler.yaml logs
+

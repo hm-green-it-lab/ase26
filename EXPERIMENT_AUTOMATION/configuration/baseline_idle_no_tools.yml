@@ -1,0 +1,20 @@
+experiment:
+  type: baseline_idle_no_tools
+  duration: 720
+  iterations: 1
+  wait_between_runs: 10
+  interval: "*/1 * * * * ?"
+
+  target_host: ${SUT_HOST}
+  remote_dir:  ${SUT_BASE_DIR}/work
+  powercap_jar_filename: powercap-reader-1.0-runner.jar
+  powercap_jar_url: ${POWERCAP_JAR_URL}
+  procfs_jar_filename: procfs-reader-1.0-runner.jar
+  procfs_jar_url: ${PROCFS_JAR_URL}
+
+  local_output_directory: ./output
+  rittal_jar_path: ${LOCAL_BASE_DIR}/rittal-reader-1.0-runner.jar
+  rittal_jar_url: ${RITTAL_JAR_URL}
+  rittal_snmp_address: ${RITTAL_SNMP_ADDRESS}
+  rittal_snmp_community: ${RITTAL_SNMP_COMMUNITY}
+  rittal_snmp_oids: ${RITTAL_SNMP_OIDS}

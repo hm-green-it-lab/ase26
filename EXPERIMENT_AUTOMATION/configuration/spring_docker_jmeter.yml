@@ -1,0 +1,77 @@
+experiment:
+  type: spring_docker_jmeter
+  duration: 720
+  iterations: 1
+  wait_between_runs: 10
+  interval: "*/1 * * * * ?"
+
+  target_host: ${SUT_HOST}
+  remote_dir: ${SUT_BASE_DIR}/work
+  powercap_jar_filename: powercap-reader-1.0-runner.jar
+  powercap_jar_url: ${POWERCAP_JAR_URL}
+  procfs_jar_filename: procfs-reader-1.0-runner.jar
+  procfs_jar_url: ${PROCFS_JAR_URL}
+
+  local_output_directory: ./output
+  rittal_jar_path: ${LOCAL_BASE_DIR}/rittal-reader-1.0-runner.jar
+  rittal_jar_url: ${RITTAL_JAR_URL}
+  rittal_snmp_address: ${RITTAL_SNMP_ADDRESS}
+  rittal_snmp_community: ${RITTAL_SNMP_COMMUNITY}
+  rittal_snmp_oids: ${RITTAL_SNMP_OIDS}
+
+  remote_docker_start: docker compose -f ${SUT_BASE_DIR}/spring-rest-service/docker-compose_socket1.yaml up -d
+  remote_docker_stop: docker compose -f ${SUT_BASE_DIR}/spring-rest-service/docker-compose_socket1.yaml down
+  remote_docker_logs: docker compose -f ${SUT_BASE_DIR}/spring-rest-service/docker-compose_socket1.yaml logs
+
+# =============================
+# JMeter
+# =============================
+jmeter:
+  enabled: true
+  download_logs: true
+
+  target_host: ${JMETER_HOST}
+  remote_dir: ${JMETER_BASE_DIR}/output/
+  bin_path: ${JMETER_BASE_DIR}/apache-jmeter-5.6.3/bin/jmeter.sh
+
+  heap_xms: 8g
+  heap_xmx: 8g
+  extra_jvm_args: ""
+
+  test_plan: ${JMETER_BASE_DIR}/jmeter_testplan.jmx
+
+  props:
+    hostname: ${SUT_HOST}
+    port: 8081
+    container_2_port: 8111
+
+    # Load in percent
+    container_2_load: 0
+
+    total_rate: 560
+    steady_state: 600
+    ramp_up_and_down: 60
+
+    summariser.name: summary
+    summariser.interval: 10
+    summariser.log: true
+    summariser.out: true
+
+    jmeter.save.saveservice.output_format: csv
+    jmeter.save.saveservice.assertion_results: none
+    jmeter.save.saveservice.response_data: false
+    jmeter.save.saveservice.response_headers: false
+    jmeter.save.saveservice.request_headers: false
+    jmeter.save.saveservice.samplerData: false
+    jmeter.save.saveservice.response_data.on_error: false
+    jmeter.save.saveservice.url: false
+    jmeter.save.saveservice.latency: true
+    jmeter.save.saveservice.connect_time: true
+    jmeter.save.saveservice.bytes: true
+    jmeter.save.saveservice.sent_bytes: true
+    jmeter.save.saveservice.label: true
+    jmeter.save.saveservice.success: true
+    jmeter.save.saveservice.response_code: true
+    jmeter.save.saveservice.time: true
+
+  summary_wait_secs: 60

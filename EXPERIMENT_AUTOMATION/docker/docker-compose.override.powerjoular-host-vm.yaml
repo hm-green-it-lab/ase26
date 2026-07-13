@@ -1,0 +1,19 @@
+services:
+  powerjoular-host:
+    image: ubuntu:24.04
+
+    privileged: true
+    pid: host
+
+    volumes:
+      - /usr/bin/powerjoular:/powerjoular:ro
+      - /proc:/proc
+      - /var/lib/libvirt/joularjx/vm1:/var/lib/libvirt/joularjx/vm1
+
+    command: >
+      sh -c '
+      VM_PID=$$(pgrep -f "qemu-system-x86_64.*vm1" | head -n1) &&
+      exec /powerjoular
+      -p $$VM_PID
+      -o /var/lib/libvirt/joularjx/vm1/vm1.csv
+      '

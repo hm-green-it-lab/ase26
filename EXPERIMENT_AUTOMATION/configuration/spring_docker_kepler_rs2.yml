@@ -1,0 +1,21 @@
+extends: spring_docker_jmeter.yml
+
+experiment:
+  type: spring_docker_kepler_rs2
+
+  http_logger_jar_path: ${LOCAL_BASE_DIR}/http-logger-1.0-runner.jar
+  http_logger_jar_url: ${HTTP_LOGGER_JAR_URL}
+
+  http_logger_url: http://${SUT_HOST}:28282/metrics
+
+  remote_docker_start:
+    - docker compose -f ${SUT_BASE_DIR}/spring-rest-service/docker-compose.yaml -f ${SUT_BASE_DIR}/spring-rest-service/docker-compose.override.kepler.yaml up -d
+    - docker compose -f ${SUT_BASE_DIR}/spring-rest-service/docker-compose_2.yaml up -d
+    - docker update --cpuset-cpus="0-19,40-59" --cpuset-mems="0,1" spring-rest-energy-test
+    - docker update --cpuset-cpus="20-39,60-79" --cpuset-mems="2,3" spring-rest-energy-test-2
+  remote_docker_stop:
+    - docker compose -f ${SUT_BASE_DIR}/spring-rest-service/docker-compose_2.yaml down
+    - docker compose -f ${SUT_BASE_DIR}/spring-rest-service/docker-compose.yaml -f ${SUT_BASE_DIR}/spring-rest-service/docker-compose.override.kepler.yaml down
+  remote_docker_logs:
+    - docker compose -f ${SUT_BASE_DIR}/spring-rest-service/docker-compose.yaml logs
+    - docker compose -f ${SUT_BASE_DIR}/spring-rest-service/docker-compose_2.yaml logs

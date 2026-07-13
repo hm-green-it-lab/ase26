@@ -1,0 +1,26 @@
+extends: spring_vm_jmeter.yml
+
+experiment:
+  type: spring_vm_joularjx
+
+  vm_container_name: spring-rest-energy-test
+
+  joularjx_result_dir: ${VM_BASE_DIR}/spring-rest-service/joularjx/joularjx-result
+  joularjx_zip_dir: ${VM_BASE_DIR}/spring-rest-service/joularjx/zip
+
+  # Für JoularJX-Fetching VM statt Hypervisor verwenden
+  vm_remote_dir: ${VM_BASE_DIR}
+
+  local_output_directory: ./output
+  rittal_jar_path: ${LOCAL_BASE_DIR}/rittal-reader-1.0-runner.jar
+
+  vm_guest_host: ${VM_HOST}
+  vm_guest_ssh_port: ${VM_PORT}
+
+  host_tool_start: docker compose -f ${SUT_BASE_DIR}/spring-rest-service/docker-compose.override.powerjoular-host-vm.yaml up -d
+  host_tool_stop: docker compose -f ${SUT_BASE_DIR}/spring-rest-service/docker-compose.override.powerjoular-host-vm.yaml down
+  host_tool_logs: docker compose -f ${SUT_BASE_DIR}/spring-rest-service/docker-compose.override.powerjoular-host-vm.yaml logs
+
+  remote_docker_start: docker-compose -f ${VM_BASE_DIR}/spring-rest-service/docker-compose.yaml -f ${VM_BASE_DIR}/spring-rest-service/docker-compose.override.joularjx-vm.yaml up -d --force-recreate
+  remote_docker_stop: docker-compose -f ${VM_BASE_DIR}/spring-rest-service/docker-compose.yaml -f ${VM_BASE_DIR}/spring-rest-service/docker-compose.override.joularjx-vm.yaml down
+  remote_docker_logs: docker-compose -f ${VM_BASE_DIR}/spring-rest-service/docker-compose.yaml -f ${VM_BASE_DIR}/spring-rest-service/docker-compose.override.joularjx-vm.yaml logs

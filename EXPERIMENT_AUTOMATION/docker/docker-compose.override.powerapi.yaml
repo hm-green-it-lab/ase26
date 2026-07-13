@@ -1,0 +1,68 @@
+services:
+  reporting-permissions:
+    image: busybox:1.36
+    restart: "no"
+    volumes:
+      - type: bind
+        source: /tmp/powerapi-sensor-reporting
+        target: /reporting
+    command:
+      - sh
+      - -c
+      - chmod -R 777 /reporting
+
+  hwpc-sensor:
+    image: powerapi/hwpc-sensor
+    container_name: hwpc-energy-sensor
+    cgroup_parent: energy-consumption-experiment.slice
+    network_mode: host
+    pid: host
+    privileged: true
+    restart: "no"
+    volumes:
+      - type: bind
+        source: /sys
+        target: /sys
+      - type: bind
+        source: /var/lib/docker/containers
+        target: /var/lib/docker/containers
+        read_only: true
+      - type: bind
+        source: /tmp/powerapi-sensor-reporting
+        target: /reporting
+      - type: bind
+        source: .
+        target: /srv
+    command:
+      - -n
+      - ${HOST_FQDN:-localhost}
+      - -r
+      - csv
+      - -U
+      - /reporting
+      - -s
+      - rapl
+      - -o
+      - -e
+      - RAPL_ENERGY_PKG
+      - -s
+      - msr
+      - -e
+      - TSC
+      - -e
+      - APERF
+      - -e
+      - MPERF
+      - -c
+      - core
+      - -e
+      - CPU_CLK_THREAD_UNHALTED:REF_P
+      - -e
+      - CPU_CLK_THREAD_UNHALTED:THREAD_P
+      - -e
+      - LLC_MISSES
+      - -e
+      - INSTRUCTIONS_RETIRED
+    depends_on:
+      reporting-permissions:
+        condition: service_completed_successfully

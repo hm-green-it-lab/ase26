@@ -1,0 +1,15 @@
+services:
+  kepler:
+    image: quay.io/sustainable_computing_io/kepler:v0.11.2
+    ports:
+      # NOTE: Use 28282 for host
+      - 28282:28282
+    volumes:
+      - type: bind
+        source: /proc
+        target: /proc
+      - type: bind
+        source: /sys
+        target: /sys
+    privileged: true
+
