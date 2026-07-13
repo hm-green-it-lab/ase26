@@ -1,1 +1,2 @@
+*.zip filter=lfs diff=lfs merge=lfs -text
 EXPERIMENT_RESULTS/**/230*.zip filter=lfs diff=lfs merge=lfs -text
