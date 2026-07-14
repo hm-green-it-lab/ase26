@@ -1,9 +1,4 @@
-<a href="https://gitlab.lrz.de/green-it/papers/2026/evaluating-software-energy-consumption-attribution-models/-/jobs/artifacts/main/raw/evaluating-software-energy-consumption-attribution-models.pdf?job=build"><img src="https://img.shields.io/badge/Download-PDF-green"></a>
-
-<a href="https://gitlab.lrz.de/green-it/papers/2026/evaluating-software-energy-consumption-attribution-models/-/jobs/artifacts/main/raw/ase26.zip?job=build"><img src="https://img.shields.io/badge/Download-ZIP-green"></a>
-
-----
-# Evaluating attribution models and tools for software energy consumption at container, process, and transaction levels – Replication Package
+# Evaluating attribution models and tools for software energy consumption at virtual machine, container, process, and transaction levels – Replication Package
 
 This repository contains the data, scripts, and configuration files required to replicate the experiments from the paper. The structure and contents are aligned with the experiments and analyses described in the paper.
 
