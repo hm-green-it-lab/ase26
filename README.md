@@ -34,6 +34,7 @@ In addition to the Python analysis scripts, the following measurement tools were
 | [JMeter](https://jmeter.apache.org/)                                     | Load testing tool used to generate HTTP requests to the Spring REST application at controlled rates for each experiment scenario from the JMeter load driver.                                                     |
 | [Kepler](https://github.com/sustainable-computing-io/kepler)             | Kepler is a Prometheus exporter that measures energy consumption metrics at the container and process level.                                                                                                      |
 | [Scaphandre](https://github.com/hubblo-org/scaphandre)                   | Scaphandre is an agent for exposing server power and energy consumption metrics.                                                                                                                                  |
+| [PowerAPI](https://github.com/powerapi-ng)                   | PowerAPI is a Software-defined power monitoring framework for estimating and attributing power consumption to containers and processes based on the SmartWatts formula.                                                                                                                                 |
 | [JoularJX](https://github.com/joular/joularjx)                           | Java agent for measuring energy consumption of JVM-based applications at the process, thread, and method level.                                                                                                   |
 | [OTJAE](https://github.com/RETIT/opentelemetry-javaagent-extension)      | OpenTelemetry Java-Agent Extension for attributing energy consumption to Java processes and transactions.                                                                                                         |
 | [lm-sensors](https://github.com/lm-sensors/lm-sensors) | The lm-sensors package is used to measure the temperature of the CPU sockets before and after each test.                                                                                                          |
@@ -65,15 +66,25 @@ Before running `python main.py --config ...` in [`EXPERIMENT_AUTOMATION/`](./EXP
   - Set Rittal SNMP connection values:
     - `RITTAL_SNMP_ADDRESS`, `RITTAL_SNMP_COMMUNITY`, `RITTAL_SNMP_OIDS`
 
+Note that the `*_rs2.yml` configuration files (e.g., [`spring_docker_kepler_rs2.yml`](./EXPERIMENT_AUTOMATION/configuration/spring_docker_kepler_rs2.yml)) contain hardcoded NUMA/cpuset bindings for the multi-container load distribution experiments (e.g., `docker update --cpuset-cpus="0-19,40-59" --cpuset-mems="0,1"`). These values are tailored to the CPU topology of the system used in the paper and likely need to be adjusted to match the core/NUMA-node layout of your own SUT.
+
 ### System Under Test (SUT) Setup
 
 On the SUT, install Docker and ensure the configured base directories are writable by the SSH user.
+
+Furthermore, the automation executes several commands on the SUT via SSH that require root privileges (e.g., for mounting/unmounting, starting Docker containers, or controlling processes). To avoid interactive password prompts during automated runs, grant the SSH user passwordless sudo rights for these commands by adding the following entry to `/etc/sudoers` (e.g., via `sudo visudo`) on the SUT, replacing `user` with the configured SSH user:
+
+```
+user ALL=(ALL) NOPASSWD: /usr/bin/java, /bin/sh, /bin/kill, /usr/bin/chown, /usr/bin/pkill, /sbin/umount, /sbin/mount, /bin/mkdir, /bin/bash, /usr/bin/systemd-run, /usr/bin/qemu-system-x86_64, /usr/bin/docker, /var/scaphandre
+```
 
 You do **not** need to manually copy files from [`./EXPERIMENT_AUTOMATION/docker/`](./EXPERIMENT_AUTOMATION/docker/) to the SUT before each run. During each experiment run, the automation:
 
 - cleans `${SUT_BASE_DIR}` on the SUT,
 - uploads `EXPERIMENT_AUTOMATION/docker/` to `${SUT_BASE_DIR}/spring-rest-service`,
 - uploads `EXPERIMENT_AUTOMATION/vms/` to `${SUT_BASE_DIR}/vm`.
+
+Note that the scripts in [`EXPERIMENT_AUTOMATION/vms/`](./EXPERIMENT_AUTOMATION/vms/) (e.g., [`start_vm1.sh`](./EXPERIMENT_AUTOMATION/vms/start_vm1.sh)) only start and control an already existing VM — for the `spring_vm_*` configs you therefore need to manually create the VM disk image beforehand at the path referenced in the scripts (e.g., `/home/user/ubuntu_disk.img`) and configure the same passwordless-sudo entry as on the SUT (see above) for the SSH user inside that VM as well.
 
 The docker command paths in the YAML files (for `remote_docker_start`, `remote_docker_stop`, and `remote_docker_logs`) are already aligned with this layout. The following is an example of the resulting folder structure on the SUT:
 
@@ -149,7 +160,7 @@ On the JMeter load driver you should download Apache JMeter (https://jmeter.apac
 - `remote_dir`: /home/jmeter/output/         # <— used for .jtl and .log (timestamped)
 - `bin_path`: /home/jmeter/apache-jmeter-5.6.3/bin/jmeter.sh
 
-The Jmeter load test script for the experiments can be downloaded here: https://github.com/RETIT/opentelemetry-javaagent-extension/blob/v0.0.18-alpha/examples/spring-rest-service/src/test/resources/jmeter_testplan.jmx and can be placed on the JMeter load driver in the same directory as the JMeter binary. It is important to ensure that the load test script location is correctly specified in the `test_plan` attribute of the `jmeter` configuration:
+The Jmeter load test script for the experiments can be downloaded here: https://github.com/RETIT/opentelemetry-javaagent-extension/blob/v0.0.18-alpha/examples/spring-rest-service/src/test/resources/jmeter_testplan.jmx and can be placed on the JMeter load driver in the same directory as the JMeter binary. It is important to ensure that the load test script location is correctly specified in the `test_plan` attribute of the [`jmeter`](./EXPERIMENT_AUTOMATION/configuration/spring_docker_jmeter.yml) configuration:
 
 - `test_plan`: /home/jmeter/jmeter_testplan.jmx
 
@@ -217,6 +228,7 @@ This repository contains several Python scripts for processing, analyzing, and v
 | [`visualizeIdlePowerConsumptionAsBoxPlot.py`](./EXPERIMENT_RESULTS/visualizeIdlePowerConsumptionAsBoxPlot.py) | Visualizes idle power consumption as boxplots to compare baseline measurements. |
 | [`visualizeLoadLevelContainerPowerConsumptionAsBoxplots.py`](./EXPERIMENT_RESULTS/visualizeLoadLevelContainerPowerConsumptionAsBoxplots.py) | Creates boxplots of container-level power consumption across different load levels. |
 | [`visualizeLoadLevelProcessPowerConsumptionAsBoxplots.py`](./EXPERIMENT_RESULTS/visualizeLoadLevelProcessPowerConsumptionAsBoxplots.py) | Creates boxplots of process-level power consumption across different load levels. |
+| [`fig_rs2_rs3.py`](./EXPERIMENT_RESULTS/fig_rs2_rs3.py) | Creates process-level power consumption boxplots for the RS2 and RS3 experiments (impact of load distribution on accuracy in multi-container scenarios). |
 | [`visualizeLoadLevelSystemPowerConsumptionAsBoxplots.py`](./EXPERIMENT_RESULTS/visualizeLoadLevelSystemPowerConsumptionAsBoxplots.py) | Creates boxplots of system-level power consumption across different load levels. |
 | [`visualizeLoadLevelTransactionPowerConsumptionAsBoxplots.py`](./EXPERIMENT_RESULTS/visualizeLoadLevelTransactionPowerConsumptionAsBoxplots.py) | Visualizes transaction-level power consumption as boxplots for each load scenario. |
 | [`visualizePowerCapAsBoxplot.py`](./EXPERIMENT_RESULTS/visualizePowerCapAsBoxplot.py) | Visualizes power cap measurements as boxplots. |
