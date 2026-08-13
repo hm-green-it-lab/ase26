@@ -32,11 +32,11 @@ run_mapping = {
     "spring_docker_joularjx": "JoularJX",
     "spring_docker_scaphandre": "Scaphandre",
     "spring_docker_kepler": "Kepler",
+    "spring_docker_powerapi": "PowerAPI/SmartWatts",
     "spring_docker_tools": "none",
     "spring_vm_otjae": "OTJAE",
     "spring_vm_joularjx": "JoularJX",
     "spring_vm_scaphandre": "Scaphandre",
-    "spring_vm_powerapi": "PowerAPI/SmartWatts",
 }
 
 def find_powercap_files(environment=None):

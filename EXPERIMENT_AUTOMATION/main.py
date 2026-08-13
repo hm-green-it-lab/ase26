@@ -70,9 +70,7 @@ DOCKER_EXPERIMENT_TYPES = {
 }
 
 VM_EXPERIMENT_TYPES = {
-    "spring_vm_kepler",
     "spring_vm_scaphandre",
-    "spring_vm_powerapi",
     "spring_vm_joularjx",
     "spring_vm_otjae",
     "spring_vm_tools",

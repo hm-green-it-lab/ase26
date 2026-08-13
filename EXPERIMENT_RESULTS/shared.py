@@ -847,7 +847,7 @@ def docker_or_vm_endswith(scenario_dir_name: str, tool: str) -> bool:
 
     Matches patterns like::
         docker_tools, spring_docker_tools, spring_vm_tools
-        docker_kepler, spring_docker_kepler, spring_vm_kepler
+        docker_scaphandre, spring_docker_scaphandre, spring_vm_scaphandre
         etc.
     """
     return (

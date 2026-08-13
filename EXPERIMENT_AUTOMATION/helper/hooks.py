@@ -352,7 +352,6 @@ def start_vm_docker(hostname: str, username: str, password: str, config: dict, o
         Local output directory for the current experiment run.
     """
     exp = config.get("experiment", {})
-    experiment_type = exp.get("type", "")
 
     # --- 1) Start tool on the host / hypervisor ---
     host_tool_start_cmd = (exp.get("host_tool_start") or "").strip()
@@ -360,11 +359,6 @@ def start_vm_docker(hostname: str, username: str, password: str, config: dict, o
         print(f"[VM] Starting tool on host ({hostname}) ...")
         host_client = _connect(hostname, username, password)
         try:
-            # Clean PowerAPI reporting dir before launch
-            if experiment_type == "spring_vm_powerapi":
-                print("[VM] Cleaning PowerAPI reporting directory on host ...")
-                _cleanup_powerapi_reporting_dir(host_client)
-
             _, stdout, stderr = host_client.exec_command(host_tool_start_cmd)
             exit_status = stdout.channel.recv_exit_status()
             if exit_status != 0:
@@ -455,7 +449,6 @@ def stop_vm_docker(hostname: str, username: str, password: str, config: dict, ou
         Local output directory for the current experiment run.
     """
     exp = config.get("experiment", {})
-    experiment_type = exp.get("type", "")
 
     # --- 1) Stop application on VM guest and fetch logs ---
     guest_host, guest_port, guest_user, guest_pass = _get_vm_guest_connection(config)
@@ -518,11 +511,5 @@ def stop_vm_docker(hostname: str, username: str, password: str, config: dict, ou
                     print(stderr.read().decode())
                 else:
                     print("[VM] ✓ Tool stopped on host.")
-
-            # Download PowerAPI artifacts from the host
-            if experiment_type == "spring_vm_powerapi":
-                print("[VM] Downloading PowerAPI reporting files from host ...")
-                _download_powerapi_reporting_files(host_client, output_dir)
-                _process_powerapi_reporting_files(output_dir)
         finally:
             host_client.close()

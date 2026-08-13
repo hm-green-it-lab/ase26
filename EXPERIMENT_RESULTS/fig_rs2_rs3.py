@@ -693,8 +693,7 @@ def collect_data_by_load_level(trim_seconds=0, scenario_suffixes=None, included_
                                     sdata['powercap'].append((run_label, power_data['Power']))
                             except Exception as e:
                                 print(f"Error loading {file_path}: {e}")
-                    kepler_files = list(scenario_dir.glob('**/http_logger_spring_docker_kepler*.csv')) + \
-                                   list(scenario_dir.glob('**/http_logger_spring_vm_kepler*.csv'))
+                    kepler_files = list(scenario_dir.glob('**/http_logger_spring_docker_kepler*.csv'))
                     if kepler_files:
                         experiment_log_path = scenario_dir / 'logs' / 'experiment_log.jsonl'
                         service_pids = extract_service_pids(str(experiment_log_path)) if experiment_log_path.exists() else []
