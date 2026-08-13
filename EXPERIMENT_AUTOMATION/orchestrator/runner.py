@@ -105,10 +105,6 @@ def run_experiment(
     username = os.environ.get("SUT_SSH_USER")
     password = os.environ.get("SUT_SSH_PASSWORD")
 
-    hostname_vm = exp['target_host']
-    username_vm = os.environ.get("SUT_SSH_USER")
-    password_vm = os.environ.get("SUT_SSH_PASSWORD")
-
     if not username or not password:
         raise RuntimeError(
             "Missing SSH credentials. Please set SUT_SSH_USER and SUT_SSH_PASSWORD as environment variables."
