@@ -1,0 +1,1 @@
+The JoularJX version in this directory implements a reporting patch (https://github.com/joular/joularjx/issues/91) that allows us to use the per second reporting functionality of JoularJX which was broken in version 3.0.1 whereas the total reporting worked properly.

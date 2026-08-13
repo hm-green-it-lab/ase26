@@ -1,0 +1,3 @@
+extends: spring_vm_jmeter.yml
+experiment:
+  type: spring_vm_tools

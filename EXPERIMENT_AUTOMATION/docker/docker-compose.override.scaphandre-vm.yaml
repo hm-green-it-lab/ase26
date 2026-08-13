@@ -1,0 +1,10 @@
+services:
+  scaphandre-vm:
+    image: hubblo/scaphandre:1.0.2
+    privileged: true
+    network_mode: host
+    volumes:
+      - /proc:/proc
+      - /var/run:/var/run
+      - /var/scaphandre:/var/scaphandre:ro
+    command: --vm prometheus --port 8111

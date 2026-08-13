@@ -1,0 +1,17 @@
+services:
+  scaphandre:
+    image: hubblo/scaphandre:1.0.2
+    privileged: true
+    ports: 
+      - "8888:8080"
+    volumes:
+      - type: bind
+        source: /proc
+        target: /proc
+      - type: bind
+        source: /sys/class/powercap
+        target: /sys/class/powercap
+      - type: bind
+        source: /var/run
+        target: /var/run
+    command: ["prometheus", "--containers"]                         

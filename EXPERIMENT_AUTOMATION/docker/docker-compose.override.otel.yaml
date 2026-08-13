@@ -1,0 +1,19 @@
+services:
+  spring-rest-service:
+    #volumes:
+    #  - "./otel/opentelemetry-javaagent.jar:/otel/opentelemetry-javaagent.jar"
+    #  - "./otel/io.retit.opentelemetry.javaagent.extension.jar:/otel/io.retit.opentelemetry.javaagent.extension.jar"
+    environment:
+      - JAVA_TOOL_OPTIONS=-javaagent:/otel/opentelemetry-javaagent.jar -Dotel.javaagent.extensions=/otel/io.retit.opentelemetry.javaagent.extension.jar
+      - OTEL_SERVICE_NAME=spring-rest-service
+      - OTEL_METRICS_EXPORTER=logging
+      - OTEL_TRACES_EXPORTER=logging
+      - OTEL_METRIC_EXPORT_INTERVAL=1000
+      - OTEL_LOGS_EXPORTER=none
+      - DEPLOYMENT_ENV=DOCKER_LOCAL
+      - IO_RETIT_LOG_CPU_DEMAND=true
+      - IO_RETIT_LOG_HEAP_DEMAND=true
+      - IO_RETIT_LOG_DISK_DEMAND=true
+      - IO_RETIT_LOG_NETWORK_DEMAND=true
+    extra_hosts:
+      - "host.docker.internal:host-gateway"

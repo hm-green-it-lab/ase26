@@ -1,0 +1,4 @@
+# Ensure all shell scripts use LF line endings globally
+*.sh text eol=lf
+# Use LFS for all zip files
+*.zip filter=lfs diff=lfs merge=lfs -text

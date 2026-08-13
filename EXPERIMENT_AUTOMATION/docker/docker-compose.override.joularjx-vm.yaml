@@ -1,0 +1,15 @@
+services:
+  spring-rest-service:
+    user: root
+    privileged: true
+    volumes:
+      - "./joularjx/joularjx-3.0.1.jar:/joularjx/joularjx-3.0.1.jar"
+      - "./joularjx/config.vm.properties:/joularjx/config.properties" # links to new vm property file
+      - "./joularjx/joularjx-result:/joularjx-result"
+      - "/var/joular:/var/joular"
+    #  - "/sys/class/powercap:/sys/class/powercap:ro"
+    #  - "/proc:/proc"
+    environment:
+      - JAVA_TOOL_OPTIONS=-javaagent:/joularjx/joularjx-3.0.1.jar -Djoularjx.config=/joularjx/config.properties
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
