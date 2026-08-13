@@ -18,7 +18,6 @@ from stat import S_ISDIR
 from datetime import datetime
 
 import paramiko
-import zipfile
 
 def fetch_joularjx_artifacts(
     config: dict,

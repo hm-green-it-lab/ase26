@@ -2,7 +2,7 @@
 from __future__ import annotations
 
 import re
-from typing import Dict, Any
+from typing import Dict
 
 
 def get_remote_temperatures(ssh) -> dict:

@@ -64,3 +64,5 @@
 /power_consumption_combined_barchart.pdf
 /EXPERIMENT_RESULTS/delta_power_vs_loadlevel_Container.pdf
 /EXPERIMENT_RESULTS/power_consumption_boxplots_Container_all_loads.pdf
+/EXPERIMENT_AUTOMATION/.env
+/EXPERIMENT_AUTOMATION/output/

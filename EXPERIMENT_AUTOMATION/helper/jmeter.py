@@ -19,7 +19,6 @@ import time
 import shlex
 import posixpath
 from datetime import datetime
-from typing import List, Tuple
 
 import paramiko
 
@@ -263,26 +262,6 @@ def stat_isdir(attr) -> bool:
     """Return True if SFTPAttributes indicate a directory."""
     import stat as pystat
     return pystat.S_ISDIR(attr.st_mode)
-
-
-def _list_remote_files(sftp: paramiko.SFTPClient, remote_dir: str) -> List[Tuple[str, int]]:
-    """
-    Non-recursive listing of files in a remote directory.
-
-    Returns
-    -------
-    list[tuple[str, int]]
-        A list of (path, size).
-    """
-    out: List[Tuple[str, int]] = []
-    try:
-        for attr in sftp.listdir_attr(remote_dir):
-            p = posixpath.join(remote_dir, attr.filename)
-            if not stat_isdir(attr):
-                out.append((p, attr.st_size))
-    except FileNotFoundError:
-        pass
-    return out
 
 
 def _ensure_local_dir(p: str) -> None:
