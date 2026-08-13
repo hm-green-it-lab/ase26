@@ -66,3 +66,8 @@
 /EXPERIMENT_RESULTS/power_consumption_boxplots_Container_all_loads.pdf
 /EXPERIMENT_AUTOMATION/.env
 /EXPERIMENT_AUTOMATION/output/
+/EXPERIMENT_AUTOMATION/tools/
+/container_power_consumption_boxplots_Container_all_loads.pdf
+/container_power_consumption_boxplots_VM_all_loads.pdf
+/delta_power_vs_loadlevel_Container.pdf
+/power_consumption_boxplots_Container_all_loads.pdf

@@ -57,22 +57,6 @@ def _is_run_dir(name: str) -> bool:
     return name.split("_")[0].isdigit()
 
 
-def _extract_tool_suffix(scenario_name: str) -> str:
-    """Extract the tool suffix from a scenario directory name.
-
-    Handles both ``spring_docker_*`` and ``spring_vm_*`` naming patterns.
-    Examples:
-        ``20251011_152909_spring_docker_kepler`` -> ``kepler``
-        ``20260619_210721_spring_vm_scaphandre`` -> ``scaphandre``
-    """
-    parts = scenario_name.split("_")
-    for part in reversed(parts):
-        if part in TOOLS or part in ("none", "idle", "tools"):
-            return part
-    # Fallback: last part
-    return parts[-1] if parts else ""
-
-
 # ---------------------------------------------------------------------------
 # Power data loading / parsing (shared across most analysis scripts)
 # ---------------------------------------------------------------------------
@@ -729,35 +713,6 @@ def parse_powerapi_report(
     return power_data
 
 
-def parse_powerapi_reports(
-    file_paths: list,
-    trim_seconds: float = 0,
-    jmeter_bounds: tuple | None = None,
-) -> pd.DataFrame:
-    """Parse multiple SmartWatts PowerReport CSVs and return a single combined
-    per-timestamp power DataFrame.
-
-    Monitoring-tool containers (e.g. the HWPC sensor) are excluded via
-    :func:`filter_application_powerapi_files` before aggregation.  If more
-    than one application container remains their per-timestamp power values
-    are summed.
-    """
-    filtered = filter_application_powerapi_files(file_paths)
-    if not filtered:
-        return pd.DataFrame(columns=["datetime", "Power"])
-
-    dfs = [parse_powerapi_report(str(p), trim_seconds, jmeter_bounds) for p in filtered]
-    dfs = [d for d in dfs if not d.empty]
-    if not dfs:
-        return pd.DataFrame(columns=["datetime", "Power"])
-    if len(dfs) == 1:
-        return dfs[0]
-
-    combined = pd.concat(dfs)
-    combined = combined.groupby("datetime")["Power"].sum().reset_index()
-    return combined
-
-
 # ---------------------------------------------------------------------------
 # Scenario matching helpers (Container vs VM naming patterns)
 # ---------------------------------------------------------------------------
@@ -820,41 +775,6 @@ def scenario_matches_any(scenario_dir_name: str, suffixes: list[str]) -> bool:
     looked up via :func:`scenario_matches`.
     """
     return any(scenario_matches(scenario_dir_name, cat) for cat in suffixes)
-
-
-def get_procfs_glob_pattern(scenario_dir_name: str) -> str:
-    """Return the glob pattern for procfs files matching *scenario_dir_name*.
-
-    Extracts the tool suffix and returns a pattern that matches both
-    ``procfs_spring_docker_<tool>_*`` and ``procfs_spring_vm_<tool>_*``.
-    """
-    tool = _extract_tool_suffix(scenario_dir_name)
-    return f"**/procfs_*_{tool}*.csv"
-
-
-def get_http_logger_glob_pattern(scenario_dir_name: str) -> str:
-    """Return the glob pattern for http_logger files matching *scenario_dir_name*.
-
-    Extracts the tool suffix and returns a pattern that matches both
-    ``http_logger_spring_docker_<tool>*`` and ``http_logger_spring_vm_<tool>*``.
-    """
-    tool = _extract_tool_suffix(scenario_dir_name)
-    return f"**/http_logger_*_{tool}*.csv"
-
-
-def docker_or_vm_endswith(scenario_dir_name: str, tool: str) -> bool:
-    """Return True if the scenario name ends with a docker/VM variant of *tool*.
-
-    Matches patterns like::
-        docker_tools, spring_docker_tools, spring_vm_tools
-        docker_scaphandre, spring_docker_scaphandre, spring_vm_scaphandre
-        etc.
-    """
-    return (
-        scenario_dir_name.endswith(f"docker_{tool}")
-        or scenario_dir_name.endswith(f"spring_docker_{tool}")
-        or scenario_dir_name.endswith(f"spring_vm_{tool}")
-    )
 
 
 # ---------------------------------------------------------------------------
