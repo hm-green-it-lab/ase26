@@ -206,6 +206,11 @@ def _per_run_cpu_util(run_paths, suffixes=('docker_tools', 'vm_tools')):
         run_label = run_path.name
         for sub in run_path.iterdir():
             if sub.is_dir() and any(sub.name.endswith(suf) for suf in suffixes):
+                # Use the JMeter steady-state window (trimmed 60s), matching the
+                # convention of the power columns and of
+                # createCpuUtilizationTableForAllLoadLevelsAndScenarios.py, so the
+                # CPU_UTIL column agrees across both generated tables.
+                jmeter_bounds = get_jmeter_time_bounds(str(sub), 60)
                 experiment_log_path = sub / 'logs' / 'experiment_log.jsonl'
                 service_pids = []
                 if experiment_log_path.exists():
@@ -213,7 +218,7 @@ def _per_run_cpu_util(run_paths, suffixes=('docker_tools', 'vm_tools')):
                 files = list(sub.glob('**/procfs_*.csv'))
                 for procfs_file in files:
                     try:
-                        _, sys_df, _, _ = parse_procfs_data(str(procfs_file), service_pids, 80, 100, None)
+                        _, sys_df, _, _ = parse_procfs_data(str(procfs_file), service_pids, 80, 100, jmeter_bounds)
                         if sys_df is not None and not sys_df.empty:
                             sys_df = sys_df.copy()
                             sys_df['cpu_util'] = sys_df['delta_cpu'] / sys_df['interval'] / 80 * 100
