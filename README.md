@@ -11,10 +11,15 @@ Key directories and their contents:
   - [`docker/`](./EXPERIMENT_AUTOMATION/docker/) – Docker Compose files and tool-specific configurations (server-side).
   - [`helper/`](./EXPERIMENT_AUTOMATION/helper/) – Python based helper scripts for measurements.
   - [`orchestrator/`](./EXPERIMENT_AUTOMATION/orchestrator/) – Python modules for controlling and evaluating measurements.
-  - [`output/`](./EXPERIMENT_AUTOMATION/output/) – output files for the experiment runs.
+  - [`setup/`](./EXPERIMENT_AUTOMATION/setup/) – Setup automation for the SUT and the JMeter load driver (see its dedicated [README](./EXPERIMENT_AUTOMATION/setup/01_README.md)); also contains a bundled copy of the JMeter test plan ([`jmeter_testplan.jmx`](./EXPERIMENT_AUTOMATION/setup/jmeter_testplan.jmx)).
+  - [`vms/`](./EXPERIMENT_AUTOMATION/vms/) – Shell scripts to start and control the QEMU/KVM guest VM used in the `spring_vm_*` experiments.
+  - `output/` – Output files for the experiment runs (created at runtime).
+  - [`main.py`](./EXPERIMENT_AUTOMATION/main.py) – Entry point for running a single experiment configuration.
   - [`.env-template`](./EXPERIMENT_AUTOMATION/.env-template) – Python .env template.
   - [`paths.env`](./EXPERIMENT_AUTOMATION/paths.env) – Hostnames, directories, tool download URLs, and path placeholders used by YAML configs.
   - [`run.ps1`](./EXPERIMENT_AUTOMATION/run.ps1) – Dedicated Windows PowerShell helper to execute multiple experiment configurations.
+  - [`run.sh`](./EXPERIMENT_AUTOMATION/run.sh) – Linux/bash equivalent of `run.ps1`.
+  - [`VM_setup.md`](./EXPERIMENT_AUTOMATION/VM_setup.md) – Instructions for creating the QEMU/KVM VM disk image used in the VM experiments.
   - [`README.md`](./EXPERIMENT_AUTOMATION/README.md) – Dedicated README for experiment automation with Python.
 
 - [`EXPERIMENT_RESULTS/`](./EXPERIMENT_RESULTS/) – Experiment raw results including Python scripts for analysis and visualization of measurement results, e.g., [`visualizeLoadLevelContainerPowerConsumptionAsBoxplots.py`](./EXPERIMENT_RESULTS/visualizeLoadLevelContainerPowerConsumptionAsBoxplots.py), [`visualizeIdlePowerConsumptionAsBoxPlot.py`](./EXPERIMENT_RESULTS/visualizeIdlePowerConsumptionAsBoxPlot.py), etc.
@@ -43,7 +48,7 @@ These tools were orchestrated and synchronized using the automation scripts desc
 
 ## Environment Setup
 
-To run the experiments using the experiment automations scripts (see[`EXPERIMENT_AUTOMATION/README.md`](./EXPERIMENT_AUTOMATION/README.md)), you need to prepare the system under test (SUT), the JMeter load driver, and your local environment. The following sections describe the required setup for each of these components.
+To run the experiments using the experiment automation scripts (see [`EXPERIMENT_AUTOMATION/README.md`](./EXPERIMENT_AUTOMATION/README.md)), you need to prepare the system under test (SUT), the JMeter load driver, and your local environment. The following sections describe the required setup for each of these components.
 
 ### Automation Configuration Files (`.env` and `paths.env`)
 
@@ -84,7 +89,7 @@ You do **not** need to manually copy files from [`./EXPERIMENT_AUTOMATION/docker
 - uploads `EXPERIMENT_AUTOMATION/docker/` to `${SUT_BASE_DIR}/spring-rest-service`,
 - uploads `EXPERIMENT_AUTOMATION/vms/` to `${SUT_BASE_DIR}/vm`.
 
-Note that the scripts in [`EXPERIMENT_AUTOMATION/vms/`](./EXPERIMENT_AUTOMATION/vms/) (e.g., [`start_vm1.sh`](./EXPERIMENT_AUTOMATION/vms/start_vm1.sh)) only start and control an already existing VM — for the `spring_vm_*` configs you therefore need to manually create the VM disk image beforehand at the path referenced in the scripts (e.g., `/home/user/ubuntu_disk.img`) and configure the same passwordless-sudo entry as on the SUT (see above) for the SSH user inside that VM as well.
+Note that the scripts in [`EXPERIMENT_AUTOMATION/vms/`](./EXPERIMENT_AUTOMATION/vms/) (e.g., [`start_vm1.sh`](./EXPERIMENT_AUTOMATION/vms/start_vm1.sh)) only start and control an already existing VM — for the `spring_vm_*` configs you therefore need to manually create the VM disk image beforehand (see [`VM_setup.md`](./EXPERIMENT_AUTOMATION/VM_setup.md) for step-by-step instructions) at the path referenced in the scripts (e.g., `/home/user/ubuntu_disk.img`) and configure the same passwordless-sudo entry as on the SUT (see above) for the SSH user inside that VM as well.
 
 The docker command paths in the YAML files (for `remote_docker_start`, `remote_docker_stop`, and `remote_docker_logs`) are already aligned with this layout. The following is an example of the resulting folder structure on the SUT:
 
@@ -160,7 +165,7 @@ On the JMeter load driver you should download Apache JMeter (https://jmeter.apac
 - `remote_dir`: /home/jmeter/output/         # <— used for .jtl and .log (timestamped)
 - `bin_path`: /home/jmeter/apache-jmeter-5.6.3/bin/jmeter.sh
 
-The Jmeter load test script for the experiments can be downloaded here: https://github.com/RETIT/opentelemetry-javaagent-extension/blob/v0.0.18-alpha/examples/spring-rest-service/src/test/resources/jmeter_testplan.jmx and can be placed on the JMeter load driver in the same directory as the JMeter binary. It is important to ensure that the load test script location is correctly specified in the `test_plan` attribute of the [`jmeter`](./EXPERIMENT_AUTOMATION/configuration/spring_docker_jmeter.yml) configuration:
+The Jmeter load test script for the experiments is included in this repository at [`EXPERIMENT_AUTOMATION/setup/jmeter_testplan.jmx`](./EXPERIMENT_AUTOMATION/setup/jmeter_testplan.jmx) (originally from https://github.com/RETIT/opentelemetry-javaagent-extension/blob/v0.0.18-alpha/examples/spring-rest-service/src/test/resources/jmeter_testplan.jmx) and can be placed on the JMeter load driver in the same directory as the JMeter binary. It is important to ensure that the load test script location is correctly specified in the `test_plan` attribute of the [`jmeter`](./EXPERIMENT_AUTOMATION/configuration/spring_docker_jmeter.yml) configuration:
 
 - `test_plan`: /home/jmeter/jmeter_testplan.jmx
 
@@ -198,25 +203,61 @@ The following tools need to be installed on your local environment:
 
 ## Experiment Automation 
 
-The experiment automation scripts are inteneded to the run on your local environment. For details on running experiments, see the [`EXPERIMENT_AUTOMATION/README.md`](./EXPERIMENT_AUTOMATION/README.md) which describes usage, configuration, and automation scripts in depth.
+The experiment automation scripts are intended to be run on your local environment. For details on running experiments, see the [`EXPERIMENT_AUTOMATION/README.md`](./EXPERIMENT_AUTOMATION/README.md) which describes usage, configuration, and automation scripts in depth.
 
 ## Experiment Results
 
 This [folder](./EXPERIMENT_RESULTS/) contains the raw measurement data and analysis scripts for the experiments presented in our paper.
 
-The experiments were conducted using a Spring REST application deployed in Docker, with energy and performance measurements taken under varying load levels. For each experiment run, the system was subjected to one of the following load intensities: **0**, **230**, **350**, **480** and **560** requests per second (RPS) on three distinct REST-endpoints each. All measurement data and results are organized by timestamp and configuration.
+The experiments were conducted using a Spring REST application deployed in Docker, with energy and performance measurements taken under varying load levels. All measurement data and results are organized by environment/runtime setup, load level, and timestamped experiment run, as described in the following subsections. The Python scripts in the [`EXPERIMENT_RESULTS/`](./EXPERIMENT_RESULTS/) folder process the raw data and generate the figures and tables used in the paper.
 
-The Python scripts in the [`EXPERIMENT_RESULTS/`](./EXPERIMENT_RESULTS/) folder process the raw data and generate the figures and tables used in the paper.
+### Directory Structure: Environments and Runtime Setups
 
-| **Load Level (RPS)** | **Description** |
-| --- | --- |
-| 0 | System idle, no external load applied. Serves as the baseline for energy and performance measurements. Results in CPU utilization of approximately 0%. |
-| 230 | Moderate load: all three REST endpoints are stressed with 230 RPS. Results in CPU utilization of about 25%. |
-| 350 | High load: all three REST endpoints are stressed with 350 RPS. Results in CPU utilization of roughly 50%. |
-| 480 | Very high load: all three REST endpoints are stressed with 480 RPS. Results in CPU utilization of around 75%. |
-| 560 | Maximum load: all three REST endpoints are stressed with 560 RPS. Results in CPU utilization close to 100%. |
+The raw data is organized in four top-level directories that map to the environments and runtime setups (RS) described in the paper:
 
-For each load level, the experiment was repeated three times to ensure validity. The results for each run are stored in dedicated `.zip` files within [`EXPERIMENT_RESULTS/`](./EXPERIMENT_RESULTS/), organized by load level and timestamps as mentioned. Each `.zip` archive contains all measurement data and logs for a single experiment run.
+| **Directory** | **Environment (paper)** | **Runtime setup (paper)** | **Description** |
+| --- | --- | --- | --- |
+| [`Container/`](./EXPERIMENT_RESULTS/Container/) | Container | RS1 – full resources | Single application container directly on the host OS with access to all resources. |
+| [`VM/`](./EXPERIMENT_RESULTS/VM/) | VM | RS1 – full resources | Single application container inside a QEMU/KVM guest VM. |
+| [`RS2/`](./EXPERIMENT_RESULTS/RS2/) | Container | RS2 – dedicated resources | Two co-located application containers, each pinned to one CPU socket and its NUMA region. |
+| [`RS3/`](./EXPERIMENT_RESULTS/RS3/) | Container | RS3 – shared resources | Two co-located application containers sharing the full hardware. |
+
+Within `Container/` and `VM/`, the results are grouped by load level, and each load level was repeated three times. The repetition folders and their corresponding `.zip` archives are named `<load>` for the first repetition and `<load>_run2`/`<load>_run3` (in `Container/`, `RS2/`, and `RS3/`) or `<load>_2`/`<load>_3` (in `VM/`) for the second and third repetition. Each `.zip` archive contains all measurement data and logs for a single experiment run.
+
+In `RS2/` and `RS3/`, a single fixed total load of 350 RPS per endpoint (i.e., 1050 T/s in the paper's notation) is distributed across the two containers C1 and C2 using three splits (50/50, 67/33, and 80/20). The folder names encode the split, e.g., `350_rs2_c1_67_c2_33_run2` = RS2, 67%/33% split between C1 and C2, repetition 2.
+
+The additional archive [`VM/vm_scaphandre_6s_measurement_intervals.zip`](./EXPERIMENT_RESULTS/VM/vm_scaphandre_6s_measurement_intervals.zip) contains the extra Scaphandre VM runs with an increased 6-second measurement interval discussed in the container-level results section of the paper; these runs are not part of the regular three repetitions.
+
+### Test Setups: Scenario Folder Names
+
+Each repetition folder contains one timestamped scenario folder per test setup (TS) of the paper, named `{YYYYMMDD}_{HHMMSS}_{configuration}`. The configuration names map to the paper's test setups as follows:
+
+| **Configuration name** | **Test setup (paper)** | **Description** |
+| --- | --- | --- |
+| `baseline_idle_no_tools` | – | Empty system, external (Rittal) measurements only ("Idle" in the paper). Only present at load level 0. |
+| `spring_docker_none` | – | Application container idle without measurement tooling ("TS1/RS1 no measurements" in the paper). Only present at load level 0. |
+| `spring_docker_tools` / `spring_vm_tools` | TS1 | Baseline: application container plus the ProcFS/Powercap (RAPL)/Rittal measurement readers, without any attribution tool. |
+| `spring_docker_scaphandre` / `spring_vm_scaphandre` | TS2 | Scaphandre attribution at container and process levels (plus VM level in the VM environment). |
+| `spring_docker_kepler` | TS3 | Kepler attribution at container and process levels (Container environment only, as the evaluated Kepler version does not support VMs). |
+| `spring_docker_powerapi` | TS4 | PowerAPI HWPC sensor recording; power attribution is computed offline with the SmartWatts formula (Container environment only). |
+| `spring_docker_joularjx` / `spring_vm_joularjx` | TS5 | JoularJX attribution at process and transaction levels (using PowerJoular on the host in the VM environment). |
+| `spring_docker_otjae` / `spring_vm_otjae` | TS6 | OTJAE resource-demand collection for model-based attribution at process and transaction levels. |
+
+The `RS2/` and `RS3/` runs use the same configuration names with an `_rs2`/`_rs3` suffix (e.g., `spring_docker_kepler_rs2`) and contain only the five tool setups (TS2–TS6); no TS1 baseline was recorded for the load-distribution experiments.
+
+### Load Levels
+
+For each experiment run in `Container/` and `VM/`, the system was subjected to one of the following load intensities: **0**, **230**, **350**, **480** and **560** requests per second (RPS) on three distinct REST endpoints each. Note that the paper reports load levels as the total transactions per second across all three endpoints, i.e., three times the per-endpoint RPS used in the folder names:
+
+| **Load Level (RPS per endpoint)** | **Total load (T/s, paper notation)** | **Description** |
+| --- | --- | --- |
+| 0 | 0 | System idle, no external load applied. Serves as the baseline for energy and performance measurements. Results in CPU utilization of approximately 0%. |
+| 230 | 690 | Moderate load: all three REST endpoints are stressed with 230 RPS. Results in CPU utilization of about 28%. |
+| 350 | 1050 | High load: all three REST endpoints are stressed with 350 RPS. Results in CPU utilization of roughly 49%. |
+| 480 | 1440 | Very high load: all three REST endpoints are stressed with 480 RPS. Results in CPU utilization of around 75%. |
+| 560 | 1680 | Maximum load: all three REST endpoints are stressed with 560 RPS. Results in CPU utilization of about 91%. |
+
+The `RS2/` and `RS3/` load-distribution experiments only use the 350 RPS per endpoint (1050 T/s) load level, distributed across the two containers as described above.
 
 ## Python Scripts for Generating Figures and Tables
 
@@ -233,10 +274,12 @@ This repository contains several Python scripts for processing, analyzing, and v
 | [`visualizeLoadLevelTransactionPowerConsumptionAsBoxplots.py`](./EXPERIMENT_RESULTS/visualizeLoadLevelTransactionPowerConsumptionAsBoxplots.py) | Visualizes transaction-level power consumption as boxplots for each load scenario. |
 | [`visualizePowerCapAsBoxplot.py`](./EXPERIMENT_RESULTS/visualizePowerCapAsBoxplot.py) | Visualizes power cap measurements as boxplots. |
 | [`createCpuUtilizationTableForAllLoadLevelsAndScenarios.py`](./EXPERIMENT_RESULTS/createCpuUtilizationTableForAllLoadLevelsAndScenarios.py) | Generates tables summarizing CPU utilization for all load levels and scenarios. |
+| [`createResponseTimeTableForAllLoadLevelsAndScenarios.py`](./EXPERIMENT_RESULTS/createResponseTimeTableForAllLoadLevelsAndScenarios.py) | Generates tables summarizing the client-observed JMeter response times per HTTP method for all load levels and scenarios (response-time overhead evaluation). |
 | [`count_jmeter_failures_by_load_and_tool.py`](./EXPERIMENT_RESULTS/count_jmeter_failures_by_load_and_tool.py) | Iterates all load levels and tool scenarios and prints the count of failed JMeter requests per result file. |
 | [`recalculate_smartwatts_results_by_load_and_run.py`](./EXPERIMENT_RESULTS/recalculate_smartwatts_results_by_load_and_run.py) | Recomputes missing or incomplete SmartWatts results from the downloaded PowerAPI sensor reports, in parallel across scenarios. |
 | [`statistical_appendix.py`](./EXPERIMENT_RESULTS/statistical_appendix.py) | Generates the consolidated statistical appendix for cross-table claims (e.g., tool accuracy vs. external-meter ground truth, Container vs. VM comparisons) that back the paper's headline results. |
 | [`characterize_workload_resource_profile.py`](./EXPERIMENT_RESULTS/characterize_workload_resource_profile.py) | Quantifies the test application's per-request resource-use profile (CPU time, memory allocation, disk/network I/O) per HTTP method, using OTJAE's per-transaction resource-demand instrumentation. |
+| [`shared.py`](./EXPERIMENT_RESULTS/shared.py) | Shared helper library used by all analysis scripts: directory traversal for the run/scenario structure described above, measurement file parsing, steady-state trimming, per-repetition aggregation, and the statistical helpers (Cohen's d, exact Wilcoxon signed-rank and Mann-Whitney U tests). Not executed directly. |
 
 ## Notes
 

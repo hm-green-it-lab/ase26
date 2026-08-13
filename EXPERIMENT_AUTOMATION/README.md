@@ -14,7 +14,7 @@ It integrates power and performance readers (e.g., RAPL, ProcFS, SNMP/Rittal), l
 
 ## 🧰 Requirements
 
-- Python **3.10+** recommended
+- Python **3.11+** recommended (matching the top-level README)
 - Java (for `.jar` execution)
 
 ### 🔧 Install Python dependencies
@@ -71,6 +71,18 @@ So for normal runs you do not need to manually copy docker files or remote reade
 
 - JMeter (optional) load Spring REST application with docker deployment measurements
 - Runs remote Powercap reader (RAPL), ProcFS reader, local Rittal SNMP reader, and respective measurement tools
+
+### Spring REST Application Load Measurement - VM (`spring_vm_*` configs)
+
+- Same as the Docker load measurement, but the application container runs inside a QEMU/KVM guest VM on the SUT
+- Requires a prepared VM disk image (see [`VM_setup.md`](./VM_setup.md)) and the scripts in [`vms/`](./vms/) to start/control the VM
+- For Scaphandre and JoularJX/PowerJoular, an additional host-side instance attributes power to the VM process and shares it with the guest
+
+### Multi-Container Load Distribution (`*_rs2.yml` / `*_rs3.yml` configs)
+
+- Two co-located instances of the application run in separate containers, receiving a fixed total load distributed in 50/50, 67/33, or 80/20 splits
+- `*_rs2.yml`: each container is pinned to one CPU socket/NUMA region via `docker update --cpuset-cpus`/`--cpuset-mems` (dedicated resources; adjust the hardcoded bindings to your CPU topology)
+- `*_rs3.yml`: both containers share the full hardware without pinning (shared resources)
 
 > [!TIP]
 > See the [`configuration/`](./configuration/) folder for example configuration files.
