@@ -122,9 +122,18 @@ def _print_tool_vs_em_section(env_data):
                 print(f"      Mann-Whitney U vs EM: U={mw['statistic']:.1f}, p={mw['p_two_sided']:.4f} (p_floor={mw['p_floor']:.4f})")
 
 
-def _collect_process_tool_by_env(exp_results, env_names, trim_seconds=60):
+def _collect_process_tool_by_env(exp_results, env_names, trim_seconds=60, included_load_levels=None):
     """OTJAE and JoularJX process power (P_P), per environment/load level, as
-    ``{env: {load_level: {'otjae': {run_label: mean}, 'joularjx': {...}, 'rittal': {...}}}}``."""
+    ``{env: {load_level: {'otjae': {run_label: mean}, 'joularjx': {...}, 'rittal': {...}}}}``.
+
+    Only load levels listed in *included_load_levels* are collected (all of them
+    when it is ``None``). The idle level is normally excluded so that this
+    section covers the same load levels as the process-level tables in the
+    paper; pooling idle in would otherwise dominate the comparison, because at
+    idle the attributed process power is a small fraction of the values seen
+    under load. Note that pcpumin/pcpumax are always derived from the full data
+    set, since the idle level defines P_CPUmin.
+    """
     result = {}
     for env_name in env_names:
         pcpumin, pcpumax = _compute_pcpumin_pcpumax(exp_results, env_name, trim_seconds)
@@ -132,6 +141,8 @@ def _collect_process_tool_by_env(exp_results, env_names, trim_seconds=60):
         by_load = defaultdict(lambda: {'otjae': defaultdict(list), 'joularjx': defaultdict(list), 'rittal': defaultdict(list)})
         for load_level, dirs in load_level_map.items():
             if not load_level.isdigit():
+                continue
+            if included_load_levels is not None and load_level not in included_load_levels:
                 continue
             for run_path in dirs:
                 run_label = run_path.name
@@ -222,7 +233,7 @@ def main():
     )
     _print_tool_vs_em_section(container_level_data)
 
-    process_data = _collect_process_tool_by_env(exp_results, env_names, trim_seconds)
+    process_data = _collect_process_tool_by_env(exp_results, env_names, trim_seconds, included_load_levels)
     _print_container_vs_vm_section(process_data)
 
 

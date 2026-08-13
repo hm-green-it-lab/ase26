@@ -52,43 +52,46 @@ def calculate_otjae_transaction_power_cpu(scenario_dir, procfs_file, service_pid
     otjae_per_second: output of parse_otjae_transaction_resource (per-second resource demand)
     Returns: dict {transaction: [P_transaction_per_sec, ...]}
     """
-    # Use process_docker_otjae to get process power per second (includes CPU, memory, storage)
-    # We need pcpumin and pcpumax, but for this function, we assume they are available from the main data collection (they can be passed as args if needed)
-    # For now, try to extract them from the global data_by_load if available, else fallback to None
+    # The transaction CPU power follows Eq. 17,
+    #   P_CPU_T = (CPU_UTIL_T / CPU_UTIL_P) x P_CPU_P,
+    # and Eq. 13 defines P_CPU_P = (CPU_UTIL_P / CPU_UTIL) x P_CPU. The
+    # process terms therefore cancel, leaving
+    #   P_CPU_T = (transaction CPU time / system CPU time) x P_CPU,
+    # where P_CPU is the CPU-only system power of Eq. 12. The *full* process
+    # power must not be used as the multiplier here: it also carries the
+    # process memory and storage power, which would then be counted a second
+    # time when the transaction's own memory/network/storage power is added
+    # below (Eq. 19).
     pcpumin = data_by_load.get('pcpumin', None)
     pcpumax = data_by_load.get('pcpumax', None)
     if pcpumin is None or pcpumax is None:
         # fallback: try to estimate from process power min/max
         pcpumin = 0
         pcpumax = 1
-    # Get process power time series (indexed by datetime)
-    process_power_series = process_docker_otjae(scenario_dir, 0, pcpumin, pcpumax)
-    if process_power_series is None or process_power_series.empty:
-        return {}
-    # Build mapping from second (Unix epoch, int) to process power (float).
-    # process_power_series is indexed by datetime; Timestamp.timestamp() is
-    # used instead of astype('int64') // 10**9 because the latter assumes
-    # nanosecond resolution and silently produces wrong (1000x too small)
-    # values when pandas stores the column at microsecond resolution.
-    process_power_sec = {int(ts.tz_localize("UTC").timestamp()): val for ts, val in process_power_series.items()}
 
-    # Get process CPU time per second (from sys_df)
+    # System CPU time and CPU-only system power per second (from /proc/stat)
     proc_util, sys_df, _, _ = parse_procfs_data(procfs_file, service_pids, n_cores=n_cores, ticks_per_sec=ticks_per_sec, jmeter_bounds=jmeter_bounds)
     if sys_df is None or sys_df.empty:
         return {}
     sys_df = sys_df.copy()
     sys_df['sec'] = sys_df['datetime'].apply(lambda ts: int(ts.timestamp()))
-    cpu_time_per_sec = sys_df.groupby('sec')['delta_cpu'].sum()
+    per_sec = sys_df.groupby('sec').agg(
+        delta_cpu=('delta_cpu', 'sum'),
+        interval=('interval', 'sum'),
+    )
+    sys_util_norm = (per_sec['delta_cpu'] / per_sec['interval'] / n_cores).clip(lower=0, upper=1)
+    cpu_time_per_sec = per_sec['delta_cpu']
+    cpu_power_per_sec = pcpumin + sys_util_norm * (pcpumax - pcpumin)
 
-    # otjae_per_second, cpu_time_per_sec, and process_power_sec are all keyed
+    # otjae_per_second, cpu_time_per_sec, and cpu_power_per_sec are all keyed
     # by the same real Unix-epoch second, so they can be joined directly
     # without any relative shifting.
     tx_power_per_invocation = {}
     tx_power_per_second = {}
     for sec, txs in otjae_per_second.items():
-        proc_cpu = cpu_time_per_sec.get(sec, None)
-        P_proc = process_power_sec.get(sec, None)
-        if proc_cpu is None or proc_cpu == 0 or P_proc is None:
+        sys_cpu = cpu_time_per_sec.get(sec, None)
+        P_cpu_sys = cpu_power_per_sec.get(sec, None)
+        if sys_cpu is None or sys_cpu == 0 or P_cpu_sys is None:
             continue
         for tx, vals in txs.items():
             cpu_tx = vals['cpu']
@@ -105,8 +108,8 @@ def calculate_otjae_transaction_power_cpu(scenario_dir, procfs_file, service_pid
             # Convert disk_tx (bytes) to TB
             disk_tx_tb = disk_tx / (1024 ** 4)
             # Calculate total transaction power for this second (all invocations)
-            if proc_cpu > 0:
-                P_tx_cpu_total = (cpu_tx_sec / proc_cpu) * P_proc
+            if sys_cpu > 0:
+                P_tx_cpu_total = (cpu_tx_sec / sys_cpu) * P_cpu_sys
             else:
                 P_tx_cpu_total = 0
             P_tx_mem_total = mem_tx_gb * MEMORY_POWER_W_PER_GB
@@ -510,6 +513,26 @@ def process_docker_otjae(scenario_dir, trim_seconds, pcpumin, pcpumax):
     # Calculate power: P = pcpumin + (sys_util_norm * (pcpumax - pcpumin))
     sys_df['Power'] = pcpumin + (sys_df['sys_util_norm'] * (pcpumax - pcpumin))
 
+    # Attribute the system-level CPU power to the monitored process by its
+    # share of the CPU time actually consumed on the system (CPU_UTIL_P /
+    # CPU_UTIL), as prescribed by the OTJAE process model. With a single
+    # container that has uncontended access to the server (RS1) this share is
+    # close to one, but applying it explicitly keeps this calculation
+    # consistent with the RS2/RS3 variant in fig_rs2_rs3.py, where two
+    # co-located containers must each receive only their own share of the
+    # host CPU power.
+    if proc_util is None or proc_util.empty:
+        return None
+    share = proc_util.rename(columns={'util_ratio': 'proc_share'})
+    sys_df = pd.merge_asof(
+        sys_df.sort_values('datetime'),
+        share[['datetime', 'proc_share']].sort_values('datetime'),
+        on='datetime',
+        direction='nearest',
+        tolerance=pd.Timedelta('1s')
+    )
+    sys_df['proc_share'] = sys_df['proc_share'].fillna(0)
+    sys_df['Power'] = sys_df['Power'] * sys_df['proc_share']
 
     # Add memory power (VmRSS in kB to GB, then * MEMORY_POWER_W_PER_GB)
     if mem_deltas_df is not None and not mem_deltas_df.empty:

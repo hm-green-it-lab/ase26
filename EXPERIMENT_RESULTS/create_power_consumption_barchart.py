@@ -55,10 +55,10 @@ def create_power_consumption_barchart(load_levels, output_path, trim_seconds=0):
         },
         'OTJAE (Process)': {
             0: (0, 0),
-            230: (141.71, 2.92),
-            350: (176.28, 1.26),
-            480: (207.62, 0.43),
-            560: (237.23, 4.53),
+            230: (141.40, 2.90),
+            350: (176.07, 1.25),
+            480: (207.50, 0.44),
+            560: (236.97, 4.41),
         },
         'JoularJX (Process)': {
             0: (0, 0),
@@ -71,10 +71,10 @@ def create_power_consumption_barchart(load_levels, output_path, trim_seconds=0):
         # level" print added to visualizeLoadLevelTransactionPowerConsumptionAsBoxplots.py.
         'OTJAE (Transaction)': {
             0: (0, 0),
-            230: (140.03, 2.93),
-            350: (174.44, 1.33),
-            480: (205.33, 0.54),
-            560: (234.37, 4.33),
+            230: (139.59, 2.92),
+            350: (174.06, 1.19),
+            480: (204.87, 0.54),
+            560: (233.91, 4.32),
         },
         'JoularJX (Transaction)': {
             0: (0, 0),

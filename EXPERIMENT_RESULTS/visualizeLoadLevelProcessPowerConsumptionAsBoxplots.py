@@ -4,12 +4,11 @@ visualizeLoadLevelProcessPowerConsumptionAsBoxplots.py
 Estimate per-process power consumption and generate boxplots grouped by load level. This script contains helpers to parse procfs, powercap and other experiment logs and uses attribution models to distribute system-level power to processes (e.g., using procfs CPU fractions) and to add memory/storage power contributions.
 
 Constants
-- MEMORY_POWER_W_PER_GB, NETWORK_POWER_W_PER_GB, STORAGE_POWER_W_PER_TB are used as conversion factors for memory, network and storage demands.
+- MEMORY_POWER_W_PER_GB and STORAGE_POWER_W_PER_TB are used as conversion factors for memory and storage demands. No network constant is defined here because the proc filesystem exposes network I/O only per process, not per thread or container, so the network term of the OTJAE model cannot be evaluated at this level.
 """
 
 # Global constants for OTJAE power calculations
 MEMORY_POWER_W_PER_GB = 0.392
-NETWORK_POWER_W_PER_GB = 1.0
 STORAGE_POWER_W_PER_TB = 1.2
 
 import pandas as pd
@@ -203,6 +202,26 @@ def process_docker_otjae(scenario_dir, trim_seconds, pcpumin, pcpumax):
     # Calculate power: P = pcpumin + (sys_util_norm * (pcpumax - pcpumin))
     sys_df['Power'] = pcpumin + (sys_df['sys_util_norm'] * (pcpumax - pcpumin))
 
+    # Attribute the system-level CPU power to the monitored process by its
+    # share of the CPU time actually consumed on the system (CPU_UTIL_P /
+    # CPU_UTIL), as prescribed by the OTJAE process model. With a single
+    # container that has uncontended access to the server (RS1) this share is
+    # close to one, but applying it explicitly keeps this calculation
+    # consistent with the RS2/RS3 variant in fig_rs2_rs3.py, where two
+    # co-located containers must each receive only their own share of the
+    # host CPU power.
+    if proc_util is None or proc_util.empty:
+        return None
+    share = proc_util.rename(columns={'util_ratio': 'proc_share'})
+    sys_df = pd.merge_asof(
+        sys_df.sort_values('datetime'),
+        share[['datetime', 'proc_share']].sort_values('datetime'),
+        on='datetime',
+        direction='nearest',
+        tolerance=pd.Timedelta('1s')
+    )
+    sys_df['proc_share'] = sys_df['proc_share'].fillna(0)
+    sys_df['Power'] = sys_df['Power'] * sys_df['proc_share']
 
     # Add memory power (VmRSS in kB to GB, then * MEMORY_POWER_W_PER_GB)
     if mem_deltas_df is not None and not mem_deltas_df.empty:
