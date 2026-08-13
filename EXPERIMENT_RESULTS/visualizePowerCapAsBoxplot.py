@@ -13,6 +13,7 @@ from pathlib import Path
 # Konfiguration: Verzeichnisse mit neuen powercap-Dateien (Energie in µJ)
 # Erwartetes Dateimuster: powercap_*.csv in den Last-Unterordnern
 from shared import (
+    read_measurement_csv,
     build_run_dirs,
     summarize_repetitions,
     cohens_d_paired,
@@ -136,7 +137,7 @@ def energy_to_power(df: pd.DataFrame) -> pd.DataFrame:
 def load_all_runs(file_rows):
     data_frames = []
     for info in file_rows:
-        df_raw = pd.read_csv(info["file"])
+        df_raw = read_measurement_csv(info["file"])
         df_pow = energy_to_power(df_raw)
         t0 = df_pow["Timestamp"].min()
         df_pow["Relative Timestamp"] = df_pow["Timestamp"] - t0

@@ -12,6 +12,7 @@ from pathlib import Path
 from collections import defaultdict
 
 from shared import (
+    read_measurement_csv,
     build_run_dirs, get_jmeter_time_bounds, extract_service_pids,
     summarize_repetitions, fmt_mean_std, cohens_d_paired, wilcoxon_signed_rank_exact,
 )
@@ -24,7 +25,7 @@ def parse_procfs_data(procfs_file, service_pids, n_cores=80, ticks_per_sec=100, 
     and in the per‑process scripts.  This script only needs sys_df.
     """
     try:
-        df = pd.read_csv(procfs_file)
+        df = read_measurement_csv(procfs_file, header_token="SourceFile")
         min_time = pd.to_datetime(df["Timestamp"].min(), unit="ms")
         max_time = pd.to_datetime(df["Timestamp"].max(), unit="ms")
         trim_seconds = 60

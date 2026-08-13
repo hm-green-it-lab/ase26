@@ -37,7 +37,7 @@ def create_power_consumption_barchart(load_levels, output_path, trim_seconds=0):
             230: (56.56, 0.18),
             350: (104.63, 3.18),
             480: (198.37, 8.08),
-            560: (221.84, 0.52),
+            560: (221.12, 0.89),
         },
         'Scaphandre (Container/Process)': {
             0: (0, 0),

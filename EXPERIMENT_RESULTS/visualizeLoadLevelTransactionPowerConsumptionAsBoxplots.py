@@ -27,6 +27,7 @@ import csv
 import threading
 
 from shared import (
+    read_measurement_csv,
     build_run_dirs,
     trim_time_series,
     load_rittal_data,
@@ -337,7 +338,7 @@ def parse_procfs_joularjx(procfs_file, powercap_files, service_pids, trim_second
     powercap_power_list = []
     for f in powercap_files:
         try:
-            df_power = pd.read_csv(f)
+            df_power = read_measurement_csv(f)
             df_power = calculate_power_from_energy(df_power)
             if 'Power' in df_power.columns:
                 powercap_power_list.append(df_power[['datetime', 'Power']])
@@ -392,7 +393,7 @@ def parse_procfs_data(procfs_file, service_pids, n_cores=80, ticks_per_sec=100, 
     """
     import pandas as pd
     try:
-        df = pd.read_csv(procfs_file)
+        df = read_measurement_csv(procfs_file, header_token="SourceFile")
         # Determine steady-state window (jmeter_bounds) or fallback to trim 60s from start/end
         min_time = pd.to_datetime(df['Timestamp'].min(), unit='ms')
         max_time = pd.to_datetime(df['Timestamp'].max(), unit='ms')

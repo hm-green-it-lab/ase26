@@ -12,6 +12,7 @@ from pathlib import Path
 from collections import defaultdict
 
 from shared import (
+    read_measurement_csv,
     build_run_dirs, get_jmeter_time_bounds, extract_service_pids,
     load_rittal_data, load_power_data,
     summarize_repetitions, cohens_d_paired, wilcoxon_signed_rank_exact, fmt_mean_std,
@@ -156,7 +157,7 @@ def parse_procfs_data(procfs_file, service_pids, n_cores=80, ticks_per_sec=100, 
     """
     import pandas as pd
     try:
-        df = pd.read_csv(procfs_file)
+        df = read_measurement_csv(procfs_file, header_token="SourceFile")
         # Determine steady-state window (jmeter_bounds) or fallback to trim 60s from start/end
         min_time = pd.to_datetime(df['Timestamp'].min(), unit='ms')
         max_time = pd.to_datetime(df['Timestamp'].max(), unit='ms')

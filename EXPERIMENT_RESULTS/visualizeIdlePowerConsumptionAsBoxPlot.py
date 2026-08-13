@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 
 from shared import (
+    read_measurement_csv,
     discover_environments,
     build_run_dirs,
     trim_time_series as _shared_trim_time_series,
@@ -78,7 +79,7 @@ def load_power_data_v2(file_path, trim_seconds=0):
         from shared import load_rittal_data
         return load_rittal_data(file_path, trim_seconds)
     elif "powercap" in file_path.lower():
-        df = pd.read_csv(file_path)
+        df = read_measurement_csv(file_path)
         return calculate_power_from_energy(df, trim_seconds)
     else:
         raise ValueError(f"Unknown file type: {file_path}")

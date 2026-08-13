@@ -85,13 +85,41 @@ def trim_time_series(
     return df[(df["datetime"] >= cutoff_start) & (df["datetime"] <= cutoff_end)]
 
 
+def read_measurement_csv(file_path: str, header_token: str = "Timestamp", **kwargs) -> pd.DataFrame:
+    """Read a measurement CSV, skipping any preamble written before the header.
+
+    In a few captures the application under test emitted a log line into the
+    measurement file before the CSV header (e.g. a Quarkus ``Unable to create
+    Vert.x cache directory`` warning). Handing such a file straight to pandas
+    makes that log line the header and the real header a data row, so the
+    expected columns are missing and the whole repetition is silently dropped
+    by the callers. The header row is therefore located explicitly and any
+    preceding lines are skipped. Files that start with the header - the normal
+    case - are read unchanged.
+    """
+    skiprows = 0
+    try:
+        with open(file_path, "r", encoding="utf-8", errors="replace") as fh:
+            for i, line in enumerate(fh):
+                if line.lstrip().startswith(header_token):
+                    skiprows = i
+                    break
+                if i >= 50:  # header is always near the top; do not scan further
+                    break
+    except OSError:
+        skiprows = 0
+    if skiprows:
+        print(f"Skipping {skiprows} preamble line(s) before the header of {file_path}")
+    return pd.read_csv(file_path, skiprows=skiprows, **kwargs)
+
+
 def load_rittal_data(
     file_path: str,
     trim_seconds: float = 0,
     jmeter_bounds: tuple | None = None,
 ) -> pd.DataFrame:
     """Load Rittal CSV, sum power per timestamp, return ``datetime``+``Power (Watts)``."""
-    df = pd.read_csv(file_path)
+    df = read_measurement_csv(file_path)
     df["Timestamp"] = pd.to_numeric(df["Timestamp"], errors="coerce")
     df = df.dropna(subset=["Timestamp"])
     power_data = df.groupby("Timestamp")["Power (Watts)"].sum().reset_index()
@@ -151,7 +179,7 @@ def load_power_data(
     if "rittal" in file_path.lower():
         return load_rittal_data(file_path, trim_seconds, jmeter_bounds=jmeter_bounds)
     elif "powercap" in file_path.lower():
-        df = pd.read_csv(file_path)
+        df = read_measurement_csv(file_path)
         return calculate_power_from_energy(df, trim_seconds, jmeter_bounds=jmeter_bounds)
     else:
         raise ValueError(f"Unknown file type: {file_path}")

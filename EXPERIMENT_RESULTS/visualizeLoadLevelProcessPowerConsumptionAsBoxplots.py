@@ -18,6 +18,7 @@ from pathlib import Path
 from collections import defaultdict
 
 from shared import (
+    read_measurement_csv,
     build_run_dirs,
     trim_time_series,
     load_rittal_data,
@@ -81,7 +82,7 @@ def parse_procfs_data(procfs_file, service_pids, n_cores=80, ticks_per_sec=100, 
     """
     import pandas as pd
     try:
-        df = pd.read_csv(procfs_file)
+        df = read_measurement_csv(procfs_file, header_token="SourceFile")
         # Determine steady-state window (jmeter_bounds) or fallback to trim 60s from start/end
         min_time = pd.to_datetime(df['Timestamp'].min(), unit='ms')
         max_time = pd.to_datetime(df['Timestamp'].max(), unit='ms')
