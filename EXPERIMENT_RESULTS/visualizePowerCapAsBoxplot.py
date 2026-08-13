@@ -151,7 +151,7 @@ def load_all_runs(file_rows):
     return pd.concat(data_frames, ignore_index=True)
 
 def main():
-    from shared import discover_environments, build_run_dirs
+    from shared import discover_environments
 
     exp_results = Path(__file__).resolve().parent
     env_names = discover_environments(exp_results)

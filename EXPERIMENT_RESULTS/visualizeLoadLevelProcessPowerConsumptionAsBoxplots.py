@@ -17,7 +17,6 @@ import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
 from collections import defaultdict
-import json
 
 from shared import (
     build_run_dirs,
@@ -33,9 +32,6 @@ from shared import (
     discover_environments,
     scenario_matches,
     scenario_matches_any,
-    get_procfs_glob_pattern,
-    get_http_logger_glob_pattern,
-    docker_or_vm_endswith,
     summarize_repetitions,
     cohens_d_paired,
     wilcoxon_signed_rank_exact,

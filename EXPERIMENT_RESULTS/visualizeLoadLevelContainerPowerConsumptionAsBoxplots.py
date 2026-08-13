@@ -10,11 +10,7 @@ The module contains parsers for specialized HTTP logger metric files as well as 
 
 
 import argparse
-import re
-import json
-import os
 import pandas as pd
-import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
 from collections import defaultdict
@@ -23,7 +19,6 @@ from shared import (
     build_run_dirs,
     trim_time_series,
     load_rittal_data,
-    calculate_power_from_energy,
     load_power_data,
     get_jmeter_time_bounds,
     extract_service_pids,
@@ -33,9 +28,6 @@ from shared import (
     discover_environments,
     scenario_matches,
     scenario_matches_any,
-    get_procfs_glob_pattern,
-    get_http_logger_glob_pattern,
-    docker_or_vm_endswith,
     summarize_repetitions,
     cohens_d_paired,
     wilcoxon_signed_rank_exact,

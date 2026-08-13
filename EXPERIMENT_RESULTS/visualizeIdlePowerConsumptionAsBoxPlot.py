@@ -10,7 +10,6 @@ import matplotlib.pyplot as plt
 from pathlib import Path
 
 from shared import (
-    load_power_data,
     discover_environments,
     build_run_dirs,
     trim_time_series as _shared_trim_time_series,
@@ -32,9 +31,7 @@ from shared import (
 # ---------------------------------------------------------------------------
 
 def calculate_power_from_energy(df, trim_seconds=0):
-    """Wrapper around shared.calculate_power_from_energy with verbose diagnostics."""
-    from shared import calculate_power_from_energy as _shared_calc
-
+    """Verbose-diagnostics variant of shared.calculate_power_from_energy."""
     df = df.sort_values(["Timestamp", "Domain"])
     df["datetime"] = pd.to_datetime(df["Timestamp"], unit="ms")
     power_data = []

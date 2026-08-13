@@ -22,10 +22,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from pathlib import Path
 from collections import defaultdict
-import os
 import re
 import csv
-import json
 import threading
 
 from shared import (
@@ -36,17 +34,12 @@ from shared import (
     load_power_data,
     get_jmeter_time_bounds,
     extract_service_pids,
-    parse_scaphandre_http_logger,
-    parse_powerapi_report,
     parse_joularjx_grouped_power,
     parse_joularjx_power,
     ensure_joularjx_unzipped,
     discover_environments,
     scenario_matches,
     scenario_matches_any,
-    get_procfs_glob_pattern,
-    get_http_logger_glob_pattern,
-    docker_or_vm_endswith,
     summarize_repetitions,
     cohens_d_paired,
     wilcoxon_signed_rank_exact,
@@ -139,7 +132,6 @@ def parse_otjae_transaction_resource(log_file, jmeter_bounds=None):
     Returns a dict: {transaction: {'cpu': ..., 'mem': ..., 'net': ..., 'disk': ..., 'count': ...}}
     """
     from collections import defaultdict
-    import pandas as pd
     # Get bounds in ms since epoch
     if jmeter_bounds is not None and all(jmeter_bounds):
         start, end = jmeter_bounds

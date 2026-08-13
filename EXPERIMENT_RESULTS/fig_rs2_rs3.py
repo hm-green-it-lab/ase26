@@ -20,7 +20,6 @@ import matplotlib.pyplot as plt
 from matplotlib.patches import Patch
 from pathlib import Path
 from collections import defaultdict
-import json
 
 from shared import (
     build_run_dirs,
@@ -32,15 +31,11 @@ from shared import (
     parse_scaphandre_http_logger,
     parse_joularjx_power,
     parse_powerapi_report,
-    parse_powerapi_reports,
     filter_application_powerapi_files,
     discover_environments,
     scenario_matches,
     scenario_matches_any,
     strip_rs_suffix,
-    get_procfs_glob_pattern,
-    get_http_logger_glob_pattern,
-    docker_or_vm_endswith,
     summarize_repetitions,
     cohens_d_paired,
     wilcoxon_signed_rank_exact,

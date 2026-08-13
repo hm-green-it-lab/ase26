@@ -14,7 +14,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 from pathlib import Path
 
-from shared import load_power_data, trim_time_series, summarize_repetitions, fmt_mean_std
+from shared import load_power_data, summarize_repetitions, fmt_mean_std
 
 def create_power_consumption_barchart(load_levels, output_path, trim_seconds=0):
     """

@@ -7,12 +7,9 @@ Tables are generated per environment (Container, VM, ...).
 """
 
 import pandas as pd
-import numpy as np
 
 from pathlib import Path
 from collections import defaultdict
-import json
-import argparse
 
 from shared import (
     build_run_dirs, get_jmeter_time_bounds, extract_service_pids,
@@ -59,19 +56,6 @@ def generate_table_for_env(exp_results, env_name):
     Generate LaTeX table for a single environment.
     Returns the LaTeX string, or None if no data found.
     """
-    trim_seconds = 60
-    scenario_suffixes = [
-        "docker_tools",
-        "docker_kepler",
-        "docker_scaphandre",
-        "docker_powerapi",
-        "docker_otjae",
-        "docker_joularjx",
-        "spring_vm_scaphandre",
-        "spring_vm_joularjx",
-        "spring_vm_otjae",
-    ]
-
     load_level_map = build_run_dirs(exp_results, environment=env_name)
     numeric_loads = sorted([k for k in load_level_map.keys() if k.isdigit()], key=int)
 
