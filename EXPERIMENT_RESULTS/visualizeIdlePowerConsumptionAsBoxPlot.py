@@ -235,6 +235,13 @@ def create_power_consumption_boxplot(data_dirs, output_path, custom_labels=None,
     # repetition *before* any cross-repetition averaging, matching the
     # mean-of-per-run-means convention used throughout the paper.
     def _collapse_per_run(runs):
+        """Reduce each repetition's raw samples to a single mean value.
+
+        Returns ``{run_label: mean}``. Collapsing before any cross-repetition
+        averaging gives every repetition equal weight regardless of how many
+        samples it contributed, which is the mean-of-per-run-means convention
+        used throughout the paper.
+        """
         per_run = defaultdict(list)
         for run_label, series in runs:
             per_run[run_label].append(series)
@@ -326,6 +333,15 @@ def create_power_consumption_boxplot(data_dirs, output_path, custom_labels=None,
     # the primary evidence here, and the (floor-limited) p is reported for
     # transparency rather than as a claim of significance.
     def _independent_note(kind, baseline_key, target_key, per_run_dict):
+        """Print an independent-sample comparison of two idle scenarios.
+
+        Reports Cohen's d and an exact Mann-Whitney U test for *target_key*
+        against *baseline_key*. The test is independent rather than paired
+        because the idle scenarios were recorded in separate sessions and
+        cannot be matched run for run; with only three repetitions per
+        scenario the p-value is floor-limited, so the effect size is the
+        primary evidence and p is reported for transparency.
+        """
         baseline_vals = list(per_run_dict.get(baseline_key, {}).values())
         target_vals = list(per_run_dict.get(target_key, {}).values())
         if not baseline_vals or not target_vals:

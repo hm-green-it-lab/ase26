@@ -168,6 +168,43 @@ def parse_procfs_data(procfs_file, service_pids, n_cores=80, ticks_per_sec=100, 
 
 
 def process_docker_otjae(scenario_dir, trim_seconds, pcpumin, pcpumax):
+    """Compute the OTJAE model-based process power series for one scenario run.
+
+    OTJAE does not report power directly; it records per-process resource
+    demands, from which power is derived here using the model described in the
+    paper:
+
+    1. system CPU power is interpolated linearly between *pcpumin* (idle) and
+       *pcpumax* (fully utilized) according to the normalized system CPU
+       utilization;
+    2. that system power is attributed to the monitored process by its share
+       of the CPU time actually consumed (``CPU_UTIL_P / CPU_UTIL``). With a
+       single uncontended container (RS1) this share is close to one, but it is
+       applied explicitly to stay consistent with the RS2/RS3 variant in
+       ``fig_rs2_rs3.py``, where two co-located containers must each receive
+       only their own share;
+    3. memory power (from VmRSS) and storage power (from read/write deltas) are
+       added on top.
+
+    Network power is deliberately not included, since no per-process network
+    I/O data is available.
+
+    Parameters
+    ----------
+    scenario_dir :
+        A single timestamped ``*_otjae`` scenario directory.
+    trim_seconds :
+        Steady-state trim applied when no JMeter bounds are found.
+    pcpumin, pcpumax :
+        Idle and maximum system CPU power in Watts, used as the interpolation
+        endpoints.
+
+    Returns
+    -------
+    pandas.Series or None
+        Per-second process power in Watts, or ``None`` when the run lacks the
+        procfs capture, the service PIDs, or usable utilization data.
+    """
     # Find jmeter bounds
     jmeter_bounds = get_jmeter_time_bounds(str(scenario_dir), trim_seconds)
     # Find procfs file - match both spring_docker and spring_vm
@@ -703,6 +740,7 @@ def main():
         return summarize_repetitions(ratios)
 
     def fmt_pct(stats):
+        """Format a mean/std pair for a LaTeX table cell, or ``-`` if absent."""
         if stats["mean"] is None:
             return "-"
         return fmt_mean_std(stats["mean"], stats["std"], unit="")

@@ -1,5 +1,6 @@
+# Dependencies for the experiment automation scripts (EXPERIMENT_AUTOMATION/).
+# The analysis and visualization scripts have their own dependency list in
+# ../EXPERIMENT_RESULTS/requirements.txt.
 python-dotenv
 pyyaml
 paramiko
-pandas
-matplotlib

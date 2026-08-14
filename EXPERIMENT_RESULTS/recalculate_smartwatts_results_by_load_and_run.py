@@ -46,6 +46,11 @@ DEFAULT_WSL_PYTHON = "python3"
 
 @dataclass
 class ScenarioResult:
+    """Outcome of one attempted SmartWatts recalculation.
+
+    ``status`` is one of ``ok``, ``failed``, or ``skipped``; ``details`` carries
+    the reason or error message shown in the final summary.
+    """
     load_level: str
     run_dir: Path
     scenario_dir: Path
@@ -56,6 +61,12 @@ class ScenarioResult:
 
 @dataclass
 class ScenarioInfo:
+    """One discovered PowerAPI scenario and its current result state.
+
+    ``state`` records what the overview pass found — whether the scenario
+    already has complete SmartWatts results or needs recalculating — so the
+    work list can be printed before any of it is executed.
+    """
     env_name: str
     load_level: str
     run_dir: Path
@@ -100,6 +111,11 @@ def find_energy_consumption_reports(scenario_dir: Path) -> list[Path]:
 
 
 def _count_file_lines(file_path: Path) -> int:
+    """Count the lines in *file_path*, tolerating undecodable bytes.
+
+    Used to judge whether a report actually holds data rather than merely
+    existing, so truncated results are recognized as incomplete.
+    """
     with open(file_path, "r", encoding="utf-8", errors="ignore") as fh:
         return sum(1 for _ in fh)
 
@@ -287,6 +303,13 @@ def _recalculate_via_podman(
     smartwatts_dir: Path,
     start: float,
 ) -> ScenarioResult:
+    """Recalculate one scenario with the containerized SmartWatts formula.
+
+    Runs the ``powerapi/smartwatts-formula`` image under Podman, bind-mounting
+    *scenario_dir* so the sensor reports are read and the results written back
+    in place. *start* is the wall-clock time the attempt began, used to report
+    the duration.
+    """
     cmd = build_smartwatts_command(scenario_dir)
     try:
         result = subprocess.run(cmd, capture_output=True, text=True)
@@ -336,6 +359,14 @@ def _recalculate_via_wsl(
     distro: str | None,
     python_exe: str,
 ) -> ScenarioResult:
+    """Recalculate one scenario with the ``smartwatts`` package inside WSL2.
+
+    The sensor reports are first staged into a native WSL2 directory (see
+    :func:`stage_scenario_into_wsl`) so the run itself never crosses the
+    Windows/WSL2 filesystem boundary, and the results are copied back into
+    *scenario_dir* afterwards. Requires ``pip install smartwatts`` inside
+    *distro*.
+    """
     wsl_work_dir, stage_error = stage_scenario_into_wsl(scenario_dir, distro)
     if wsl_work_dir is None:
         return ScenarioResult(
@@ -471,6 +502,7 @@ def print_overview(infos: list[ScenarioInfo]) -> None:
 
 
 def parse_args() -> argparse.Namespace:
+    """Parse the command line options for this script."""
     parser = argparse.ArgumentParser(
         description=(
             "Show an overview of PowerAPI scenarios under EXPERIMENT_RESULTS "
@@ -535,6 +567,13 @@ def parse_args() -> argparse.Namespace:
 
 
 def main() -> int:
+    """Survey all PowerAPI scenarios and rebuild the ones needing it.
+
+    Prints an overview of which scenarios already have complete SmartWatts
+    results before executing anything, then recalculates the rest with the
+    selected engine. Returns a process exit code: 0 on success, 1 if the
+    engine is unavailable or any scenario failed.
+    """
     args = parse_args()
     root = Path(__file__).resolve().parent
 
@@ -579,6 +618,12 @@ def main() -> int:
     stop_event = threading.Event()
 
     def run_one(info: ScenarioInfo) -> ScenarioResult:
+        """Recalculate one scenario, honouring the --stop-on-error flag.
+
+        Executed from the thread pool. If an earlier scenario already failed
+        and ``--stop-on-error`` is active, ``stop_event`` is set and this
+        returns a ``skipped`` result without starting another SmartWatts run.
+        """
         if stop_event.is_set():
             return ScenarioResult(
                 load_level=info.load_level,

@@ -215,6 +215,16 @@ def _print_container_vs_vm_section(process_data):
 
 
 def main():
+    """Print the consolidated statistical appendix.
+
+    Covers the two cross-table analyses described in the module docstring:
+    container-level tool power as a percentage of the external meter, and the
+    Container vs. VM comparison for OTJAE and JoularJX process power. Only the
+    Container and VM environments are analysed (RS2/RS3 have their own
+    statistics in ``fig_rs2_rs3.py``), the idle load level is excluded, and the
+    first and last 60 s of each capture are trimmed to keep the comparison
+    within the steady-state phase.
+    """
     exp_results = Path(__file__).resolve().parent
     trim_seconds = 60
     scenario_suffixes = ["tools", "kepler", "scaphandre", "powerapi"]

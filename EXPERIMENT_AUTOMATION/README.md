@@ -23,6 +23,9 @@ It integrates power and performance readers (e.g., RAPL, ProcFS, SNMP/Rittal), l
 pip install -r requirements.txt
 ```
 
+> [!NOTE]
+> This installs only what the automation itself needs (`python-dotenv`, `pyyaml`, `paramiko`). The analysis and visualization scripts have their own dependency list in [`../EXPERIMENT_RESULTS/requirements.txt`](../EXPERIMENT_RESULTS/requirements.txt).
+
 ### 🌐 Set environment variables
 
 > [!INFO]
@@ -36,7 +39,9 @@ pip install -r requirements.txt
 >    - `SUT_HOST`, `SUT_BASE_DIR`
 >    - `JMETER_HOST`, `JMETER_BASE_DIR`
 >    - `LOCAL_BASE_DIR`
+>    - `VM_HOST`, `VM_PORT`, `VM_BASE_DIR` (for `spring_vm_*` experiments; `VM_HOST`/`VM_PORT` address the guest through the QEMU SSH port forward set up in [`vms/`](./vms/), by default `127.0.0.1:2222`)
 > 3. In `paths.env`, set jar download URLs (`RITTAL_JAR_URL`, `HTTP_LOGGER_JAR_URL`, `PROCFS_JAR_URL`, `POWERCAP_JAR_URL`) if you want automatic jar download when files are missing.
+> 4. In `paths.env`, set the Rittal PDU SNMP connection (`RITTAL_SNMP_ADDRESS`, `RITTAL_SNMP_COMMUNITY`, `RITTAL_SNMP_OIDS`) used by the local rittal-reader JAR.
 
 ## 🔁 What happens automatically on each run
 
@@ -86,6 +91,20 @@ So for normal runs you do not need to manually copy docker files or remote reade
 
 > [!TIP]
 > See the [`configuration/`](./configuration/) folder for example configuration files.
+
+### Configuration file inheritance
+
+Configuration files are composed rather than duplicated. Each tool-specific YAML file starts with an `extends:` key naming a base configuration, and its own keys are then deep-merged on top of that base (see `load_config` and `merge_configs` in [`main.py`](./main.py)). `extends` is resolved recursively and rejects circular inheritance. Placeholders of the form `${VAR}` are substituted from `paths.env` as each file is read, before the merge; SSH credentials from `.env` are read separately at runtime and are not available as YAML placeholders.
+
+The three base configurations are:
+
+| Base configuration | Extended by | Contains |
+| --- | --- | --- |
+| [`spring_docker_jmeter.yml`](./configuration/spring_docker_jmeter.yml) | all `spring_docker_*` configs | Common reader/JMeter/output settings for the Container environment. |
+| [`spring_vm_jmeter.yml`](./configuration/spring_vm_jmeter.yml) | all `spring_vm_*` configs | The same, for the VM environment, plus the guest VM lifecycle settings. |
+| [`baseline_idle.yml`](./configuration/baseline_idle.yml) | [`baseline_idle_no_tools.yml`](./configuration/baseline_idle_no_tools.yml) | Idle measurement with the ProcFS/Powercap/Rittal readers. |
+
+So to change something for every Container experiment at once — the measurement duration, for instance — edit `spring_docker_jmeter.yml` rather than each tool configuration.
 
 ## 🏃 Running Experiments
 

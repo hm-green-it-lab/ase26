@@ -199,6 +199,14 @@ def parse_otjae_transaction_resource(log_file, jmeter_bounds=None):
         key = f"{method}"
         # Calculate deltas — require both endpoints; return 0 if either is missing
         def calc_delta(attr, startk, endk):
+            """Return the resource demand consumed between two OTJAE counters.
+
+            OTJAE records absolute start/end counter values as span attributes,
+            so a transaction's demand is their difference. Returns 0 when
+            either attribute is missing or unparseable, and clamps negative
+            results to 0 — these occur when a counter wraps or a span is
+            truncated, and would otherwise subtract from the totals.
+            """
             start_val = attributes.get(startk)
             end_val = attributes.get(endk)
             if start_val is None or end_val is None:
@@ -479,6 +487,22 @@ def parse_procfs_data(procfs_file, service_pids, n_cores=80, ticks_per_sec=100, 
 
 
 def process_docker_otjae(scenario_dir, trim_seconds, pcpumin, pcpumax):
+    """Compute the OTJAE model-based process power series for one scenario run.
+
+    Identical to the function of the same name in
+    ``visualizeLoadLevelProcessPowerConsumptionAsBoxplots.py``: system CPU power
+    interpolated between *pcpumin* and *pcpumax* according to normalized system
+    CPU utilization, attributed to the process by its share of consumed CPU
+    time, plus memory and storage power. It is kept here so the
+    transaction-level analysis can relate its per-transaction values to the
+    process-level total without importing across scripts.
+
+    Returns
+    -------
+    pandas.Series or None
+        Per-second process power in Watts, or ``None`` when the run lacks the
+        procfs capture, the service PIDs, or usable utilization data.
+    """
     # Find jmeter bounds
     jmeter_bounds = get_jmeter_time_bounds(str(scenario_dir), trim_seconds)
     # Find procfs file - match both spring_docker and spring_vm
@@ -640,6 +664,14 @@ def collect_data_by_load_level(trim_seconds=0, scenario_suffixes=None, included_
         data_lock = Lock()
 
         def process_scenario(load_level, scenario_dir):
+            """Parse one scenario directory into the shared results dict.
+
+            Runs in a worker thread — hence the ``data_lock`` around every
+            write — and dispatches on the scenario name, since JoularJX
+            (per-method energy archives), OTJAE (procfs plus span attributes),
+            and the TS1 baseline (Rittal/powercap CSVs) need entirely different
+            parsing. Scenarios not matching *scenario_suffixes* are skipped.
+            """
             scenario_name = scenario_dir.name
             if scenario_suffixes is not None and not scenario_matches_any(scenario_name, scenario_suffixes):
                 return
@@ -880,6 +912,13 @@ def main():
         data_lock = Lock()
 
         def process_scenario(load_level, run_label, scenario_dir):
+            """Parse one scenario directory, keyed by repetition, for the tables.
+
+            Same dispatch as the plotting variant above, but keeps each
+            repetition (*run_label*) separate instead of pooling them, so the
+            tables can compute per-repetition statistics. Also runs in a worker
+            thread and writes under ``data_lock``.
+            """
             scenario_name = scenario_dir.name
             if scenario_suffixes is not None and not any(scenario_name.endswith(suf) for suf in scenario_suffixes):
                 return
@@ -1109,6 +1148,7 @@ def main():
         all_env_stats[env_key] = table_stats
 
     def fmt_tx(stats):
+        """Format a mean/std pair for a LaTeX table cell, or ``-`` if absent."""
         if stats is None or stats.get("mean") is None:
             return "-"
         return fmt_mean_std(stats["mean"], stats["std"], unit="")

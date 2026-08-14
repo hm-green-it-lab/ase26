@@ -1,4 +1,17 @@
-# ssh_temperatures.py
+"""
+ssh_temperatures.py
+
+Read CPU package temperatures from a remote host via ``lm-sensors``.
+
+The runner samples these once before and once after every measurement run and
+records both values in ``logs/experiment_log.jsonl``, so that a repetition
+started from an unusually warm machine can be recognized during analysis —
+CPU temperature affects both leakage power and clock behaviour, and therefore
+the measured energy.
+
+Requires ``lm-sensors`` to be installed on the remote host; when it is not,
+the reader degrades to an ``{"error": ...}`` result instead of failing the run.
+"""
 from __future__ import annotations
 
 import re

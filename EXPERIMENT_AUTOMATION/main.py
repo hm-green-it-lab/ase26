@@ -104,6 +104,12 @@ def parse_args(argv: list[str] | None = None) -> argparse.Namespace:
 
 
 def _load_yaml(path: Path) -> dict:
+    """Read one YAML file, substituting ``${VAR}`` placeholders from paths.env.
+
+    Substitution happens on the raw text before parsing, so placeholders may
+    appear anywhere in the file, including inside longer command strings.
+    ``extends`` is *not* resolved here — see :func:`load_config`.
+    """
     # Load env vars from central file
     env_path = Path(__file__).resolve().parent / "paths.env"
     env_values = load_env_file(env_path)
@@ -119,6 +125,12 @@ def _load_yaml(path: Path) -> dict:
     
 
 def load_env_file(path: Path) -> dict:
+    """Parse a ``KEY=VALUE`` env file into a dict.
+
+    Blank lines and ``#`` comments are skipped; only the first ``=`` splits a
+    line, so values may contain further ``=`` characters (as the SNMP OID
+    lists in ``paths.env`` do).
+    """
     values = {}
     with path.open("r", encoding="utf-8") as f:
         for line in f:
@@ -132,9 +144,17 @@ def load_env_file(path: Path) -> dict:
 
 
 def substitute_env_vars(text: str, env: dict) -> str:
+    """Replace every ``${VAR}`` occurrence in *text* with its value from *env*.
+
+    Placeholders without a matching key are left verbatim rather than raising
+    or expanding to an empty string. That keeps a typo visible as a literal
+    ``${TYPO}`` in the failing command instead of silently producing a
+    truncated path.
+    """
     pattern = re.compile(r"\$\{(\w+)\}")
 
     def replace(match):
+        """Look up one placeholder, falling back to the unchanged text."""
         key = match.group(1)
         return env.get(key, match.group(0))  # fallback: leave unchanged
 
@@ -146,6 +166,12 @@ def merge_configs(base_config: dict, extension_config: dict) -> dict:
     merged = base_config.copy()
 
     def deep_merge(source: dict, destination: dict) -> dict:
+        """Recursively write *source* onto *destination*, in place.
+
+        Nested mappings are merged key by key; every other value (including
+        lists) replaces the destination entry wholesale. *source* is the
+        extending config, so its values win.
+        """
         for key, value in source.items():
             if key in destination and isinstance(destination[key], dict) and isinstance(value, dict):
                 deep_merge(value, destination[key])
@@ -314,6 +340,20 @@ def apply_cli_overrides(config: dict, args: argparse.Namespace) -> dict:
 
 
 def main(argv: list[str] | None = None) -> None:
+    """Entry point: load one experiment configuration and run it.
+
+    Resolves ``--config`` (following any ``extends`` chain and substituting
+    ``${VAR}`` placeholders), applies the command line overrides such as
+    ``--total-rate``, and hands the resulting configuration to ``dispatch``,
+    which selects the experiment type and performs the measurement run.
+
+    Parameters
+    ----------
+    argv :
+        Argument list to parse. Defaults to ``sys.argv[1:]`` via argparse when
+        ``None``; passing an explicit list is useful for driving a run from
+        another script.
+    """
     args = parse_args(argv)
     config = load_config(args.config)
     config = apply_cli_overrides(config, args)

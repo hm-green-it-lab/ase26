@@ -223,7 +223,36 @@ def run_remote_procfs(
     remote_dir_vm: str | None = None,
     vm_pids: list | None = None,
 ) -> None:
+    """Run the ProcFSReader for one measurement window and collect its output.
 
+    In the default (Container) case a single reader runs on *hostname* and
+    samples the processes in *pids*.
+
+    With ``vm_mode=True`` two readers run in parallel over the same
+    measurement window: one on the SUT host, sampling the QEMU process that
+    represents the whole guest, and one inside the guest VM (addressed by the
+    ``*_vm`` parameters), sampling the application processes there. Both are
+    needed because the host cannot see into the guest's process table and the
+    guest cannot see its own share of host power.
+
+    Parameters
+    ----------
+    pids :
+        In the default case, the process IDs to sample on *hostname*. Note that
+        in ``vm_mode`` these are the PIDs sampled *inside the guest*, while
+        ``vm_pids`` holds the PIDs sampled on the host (the QEMU process) — the
+        two are deliberately crossed over, because the caller names them from
+        the perspective of the application under test rather than the machine.
+        The guest's output is written with an ``_vm`` suffix on the experiment
+        type so both series stay distinguishable.
+    experiment_type, iteration, total_iterations :
+        Used to build the output filename, which follows the common
+        ``{tool}_{experiment_type}_{timestamp}_{iter}_{total}`` pattern.
+    duration :
+        Length of the measurement window in seconds.
+    interval :
+        Sampling interval as a cron expression; defaults to once per second.
+    """
     # ─────────────────────────────────────────────────────────────
     # Normal Case
     # ─────────────────────────────────────────────────────────────
@@ -256,7 +285,7 @@ def run_remote_procfs(
             "password": password,
             "remote_dir": remote_dir,
             "procfs_jar_filename": procfs_jar_filename,
-            # innerhalb des Hosts keine PID-Einschränkung
+            # On the host, sample the QEMU process representing the whole guest
             "pids": vm_pids,
             "experiment_type": experiment_type,
             "iteration": iteration,

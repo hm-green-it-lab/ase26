@@ -24,7 +24,16 @@ Key directories and their contents:
 
 - [`EXPERIMENT_RESULTS/`](./EXPERIMENT_RESULTS/) – Experiment raw results including Python scripts for analysis and visualization of measurement results, e.g., [`visualizeLoadLevelContainerPowerConsumptionAsBoxplots.py`](./EXPERIMENT_RESULTS/visualizeLoadLevelContainerPowerConsumptionAsBoxplots.py), [`visualizeIdlePowerConsumptionAsBoxPlot.py`](./EXPERIMENT_RESULTS/visualizeIdlePowerConsumptionAsBoxPlot.py), etc.
 
-- [`requirements.txt`](./EXPERIMENT_AUTOMATION/requirements.txt) – List of dependencies for Python scripts.
+The two parts of the package have separate dependency lists, since running the experiments and analyzing the results are independent activities:
+
+- [`EXPERIMENT_AUTOMATION/requirements.txt`](./EXPERIMENT_AUTOMATION/requirements.txt) – Dependencies for the experiment automation (`python-dotenv`, `pyyaml`, `paramiko`).
+- [`EXPERIMENT_RESULTS/requirements.txt`](./EXPERIMENT_RESULTS/requirements.txt) – Dependencies for the analysis and visualization scripts (`pandas`, `numpy`, `matplotlib`, `seaborn`).
+
+If you only want to reproduce the figures and tables from the shipped raw data, you just need the second one:
+
+```bash
+pip install -r EXPERIMENT_RESULTS/requirements.txt
+```
 
 ## Measurement Tools
 
@@ -65,6 +74,7 @@ Before running `python main.py --config ...` in [`EXPERIMENT_AUTOMATION/`](./EXP
     - `SUT_HOST`, `SUT_BASE_DIR`
     - `JMETER_HOST`, `JMETER_BASE_DIR`
     - `LOCAL_BASE_DIR`
+    - `VM_HOST`, `VM_PORT`, `VM_BASE_DIR` (only for `spring_vm_*` configs; `VM_HOST`/`VM_PORT` address the guest through the QEMU SSH port forward configured in [`vms/`](./EXPERIMENT_AUTOMATION/vms/), by default `127.0.0.1:2222`)
   - Set tool URLs used for automatic download when jars are missing:
     - `RITTAL_JAR_URL`, `HTTP_LOGGER_JAR_URL`
     - `PROCFS_JAR_URL`, `POWERCAP_JAR_URL`
@@ -91,6 +101,9 @@ You do **not** need to manually copy files from [`./EXPERIMENT_AUTOMATION/docker
 
 Note that the scripts in [`EXPERIMENT_AUTOMATION/vms/`](./EXPERIMENT_AUTOMATION/vms/) (e.g., [`start_vm1.sh`](./EXPERIMENT_AUTOMATION/vms/start_vm1.sh)) only start and control an already existing VM — for the `spring_vm_*` configs you therefore need to manually create the VM disk image beforehand (see [`VM_setup.md`](./EXPERIMENT_AUTOMATION/VM_setup.md) for step-by-step instructions) at the path referenced in the scripts (e.g., `/home/user/ubuntu_disk.img`) and configure the same passwordless-sudo entry as on the SUT (see above) for the SSH user inside that VM as well.
 
+> [!WARNING]
+> The guest-side base directory is currently hardcoded to `/home/userv` in `sync_files()` in [`helper/vm.py`](./EXPERIMENT_AUTOMATION/helper/vm.py) and is *not* taken from `VM_BASE_DIR` in `paths.env`. If your guest VM uses a different user or home directory, adjust it in both places.
+
 The docker command paths in the YAML files (for `remote_docker_start`, `remote_docker_stop`, and `remote_docker_logs`) are already aligned with this layout. The following is an example of the resulting folder structure on the SUT:
 
 ```
@@ -100,17 +113,43 @@ The docker command paths in the YAML files (for `remote_docker_start`, `remote_d
 ├── docker-compose.override.otel.yaml
 ├── docker-compose.override.scaphandre.yaml
 ├── docker-compose.yaml
+├── docker-compose_2.yaml
 ├── joularjx
-    ├── config.properties
-    ├── joularjx-3.0.1.jar
-    ├── joularjx-result
-    ├── results
-    └── zip
+│   ├── config.properties
+│   ├── config.vm.properties
+│   ├── joularjx-3.0.1.jar
+│   ├── joularjx-result
+│   ├── results
+│   └── zip
+└── otel
+    ├── otel_version
+    └── otjae_version
 ```
 
-- `docker-compose.yaml` is the base compose file describing the Spring REST application.
-- The `docker-compose.override.*.yaml` files provide tool-specific overrides. Each override file enables and configures one measurement tooling stack (for example, Kepler, Scaphandre, JoularJX, or OTJAE).
-- The `joularjx/` directory contains the JoularJX agent jar and its configuration/results directories.
+- `docker-compose.yaml` is the base compose file describing the Spring REST application (container `C1`). `docker-compose_2.yaml` describes the second, co-located application container (`C2`) and is only used by the `*_rs2.yml`/`*_rs3.yml` load-distribution configs.
+- The `docker-compose.override.*.yaml` files provide tool-specific overrides. Each override file enables and configures one measurement tooling stack. The naming convention is:
+  - plain name (e.g. `…scaphandre.yaml`) – Container environment, single application container;
+  - `…-vm.yaml` – the guest-side stack for the `spring_vm_*` configs, running inside the QEMU/KVM VM;
+  - `…-host-vm.yaml` – the additional host-side instance used in the VM environment, which attributes power to the `qemu-system-x86_64` process and shares it with the guest;
+  - `…_2.yaml` / `…-2.yaml` – the counterpart stack for the second container (`C2`) in the RS2/RS3 load-distribution experiments.
+- The `joularjx/` directory contains the JoularJX agent jar and its configuration/results directories. `config.properties` is used in the Container environment and `config.vm.properties` inside the guest VM (see the [JoularJX README](./EXPERIMENT_AUTOMATION/docker/joularjx/README.md) for why a patched 3.0.1 build is bundled).
+- The `otel/` directory pins the OpenTelemetry Java agent and OTJAE extension versions used for the TS6 measurements.
+
+The full mapping of override files to experiment configurations is:
+
+| Override file | Used by | Purpose |
+| --- | --- | --- |
+| `docker-compose.override.scaphandre.yaml` | `spring_docker_scaphandre*.yml` | Scaphandre on the host (TS2). |
+| `docker-compose.override.scaphandre-vm.yaml` | `spring_vm_scaphandre.yml` | Scaphandre inside the guest VM. |
+| `docker-compose.override.scaphandre-host-vm.yaml` | `spring_vm_scaphandre.yml` | Host-side Scaphandre QEMU exporter attributing power to the VM process. |
+| `docker-compose.override.kepler.yaml` | `spring_docker_kepler*.yml` | Kepler (TS3, Container environment only). |
+| `docker-compose.override.powerapi.yaml` | `spring_docker_powerapi*.yml` | PowerAPI HWPC sensor (TS4). |
+| `docker-compose.override.joularjx.yaml` | `spring_docker_joularjx*.yml` | JoularJX agent on `C1` (TS5). |
+| `docker-compose.override.joularjx_2.yaml` | `spring_docker_joularjx_rs2/rs3.yml` | JoularJX agent on `C2`. |
+| `docker-compose.override.joularjx-vm.yaml` | `spring_vm_joularjx.yml` | JoularJX inside the guest VM. |
+| `docker-compose.override.powerjoular-host-vm.yaml` | `spring_vm_joularjx.yml` | Host-side PowerJoular attributing power to the VM process. |
+| `docker-compose.override.otel.yaml` | `spring_docker_otjae*.yml`, `spring_vm_otjae.yml` | OTJAE / OpenTelemetry agent on `C1` (TS6). |
+| `docker-compose.override.otel-2.yaml` | `spring_docker_otjae_rs2/rs3.yml` | OTJAE / OpenTelemetry agent on `C2`. |
 
 #### Spring REST Service Container Build
 
@@ -211,6 +250,9 @@ This [folder](./EXPERIMENT_RESULTS/) contains the raw measurement data and analy
 
 The experiments were conducted using a Spring REST application deployed in Docker, with energy and performance measurements taken under varying load levels. All measurement data and results are organized by environment/runtime setup, load level, and timestamped experiment run, as described in the following subsections. The Python scripts in the [`EXPERIMENT_RESULTS/`](./EXPERIMENT_RESULTS/) folder process the raw data and generate the figures and tables used in the paper.
 
+> [!IMPORTANT]
+> The raw data is stored as `.zip` archives, one per load level. They have to be extracted before any analysis script will find data — see [Step 1: Extract the raw measurement archives](#step-1-extract-the-raw-measurement-archives-required) below.
+
 ### Directory Structure: Environments and Runtime Setups
 
 The raw data is organized in four top-level directories that map to the environments and runtime setups (RS) described in the paper:
@@ -226,7 +268,7 @@ Within `Container/` and `VM/`, the results are grouped by load level, and each l
 
 In `RS2/` and `RS3/`, a single fixed total load of 350 RPS per endpoint (i.e., 1050 T/s in the paper's notation) is distributed across the two containers C1 and C2 using three splits (50/50, 67/33, and 80/20). The folder names encode the split, e.g., `350_rs2_c1_67_c2_33_run2` = RS2, 67%/33% split between C1 and C2, repetition 2.
 
-The additional archive [`VM/vm_scaphandre_6s_measurement_intervals.zip`](./EXPERIMENT_RESULTS/VM/vm_scaphandre_6s_measurement_intervals.zip) contains the extra Scaphandre VM runs with an increased 6-second measurement interval discussed in the container-level results section of the paper; these runs are not part of the regular three repetitions.
+The additional archive [`VM/vm_scaphandre_6s_measurement_intervals.zip`](./EXPERIMENT_RESULTS/VM/vm_scaphandre_6s_measurement_intervals.zip) contains the extra Scaphandre VM runs with an increased 6-second measurement interval discussed in the container-level results section of the paper; these runs are not part of the regular three repetitions and must **not** be extracted into `VM/` (see the extraction step below).
 
 ### Test Setups: Scenario Folder Names
 
@@ -245,6 +287,14 @@ Each repetition folder contains one timestamped scenario folder per test setup (
 
 The `RS2/` and `RS3/` runs use the same configuration names with an `_rs2`/`_rs3` suffix (e.g., `spring_docker_kepler_rs2`) and contain only the five tool setups (TS2–TS6); no TS1 baseline was recorded for the load-distribution experiments.
 
+Each configuration name above corresponds to the YAML file of the same name in [`EXPERIMENT_AUTOMATION/configuration/`](./EXPERIMENT_AUTOMATION/configuration/). That folder contains three further YAML files that do not appear as scenario folder names, because the other configurations inherit from them through the `extends:` key on their first line:
+
+| **Base configuration** | **Extended by** | **Contains** |
+| --- | --- | --- |
+| [`spring_docker_jmeter.yml`](./EXPERIMENT_AUTOMATION/configuration/spring_docker_jmeter.yml) | all `spring_docker_*` configs | Common reader/JMeter/output settings for the Container environment. |
+| [`spring_vm_jmeter.yml`](./EXPERIMENT_AUTOMATION/configuration/spring_vm_jmeter.yml) | all `spring_vm_*` configs | Same, for the VM environment (adds the guest VM lifecycle settings). |
+| [`baseline_idle.yml`](./EXPERIMENT_AUTOMATION/configuration/baseline_idle.yml) | [`baseline_idle_no_tools.yml`](./EXPERIMENT_AUTOMATION/configuration/baseline_idle_no_tools.yml) | Idle measurement with the ProcFS/Powercap/Rittal readers. It is runnable on its own, but only its `_no_tools` variant — external Rittal measurements only — was used for the runs shipped here. |
+
 ### Load Levels
 
 For each experiment run in `Container/` and `VM/`, the system was subjected to one of the following load intensities: **0**, **230**, **350**, **480** and **560** requests per second (RPS) on three distinct REST endpoints each. Note that the paper reports load levels as the total transactions per second across all three endpoints, i.e., three times the per-endpoint RPS used in the folder names:
@@ -261,7 +311,46 @@ The `RS2/` and `RS3/` load-distribution experiments only use the 350 RPS per end
 
 ## Python Scripts for Generating Figures and Tables
 
-This repository contains several Python scripts for processing, analyzing, and visualizing the experimental results. These scripts are located in the [`EXPERIMENT_RESULTS/`](./EXPERIMENT_RESULTS/) folder. Most of the scripts are designed to be executed from the top-level folder of the repository (e.g., `python ./EXPERIMENT_RESULTS/createCpuUtilizationTableForAllLoadLevelsAndScenarios.py`). The only exceptions are the `create_power_consumption_barchart.py` and `visualizePowerCapAsBoxplot.py` scripts, which need to be executed from within the [`EXPERIMENT_RESULTS/`](./EXPERIMENT_RESULTS/) folder. 
+### Step 1: Extract the raw measurement archives (required)
+
+The raw data is version-controlled as one `.zip` archive per load level and environment (VM, Container, RS2, RS3), so a fresh clone contains only the archives — the run directories the analysis scripts traverse do not exist yet. **The archives must be extracted in place before any analysis script is run**, each next to its archive and named after it (e.g., `EXPERIMENT_RESULTS/Container/350.zip` → `EXPERIMENT_RESULTS/Container/350/`). Without this step every script terminates reporting that it found no data.
+
+```bash
+# from the top-level folder of the repository
+cd EXPERIMENT_RESULTS
+find . -name "*.zip" \
+     -not -name "joularjx-result*" \
+     -not -name "vm_scaphandre_6s_measurement_intervals.zip" \
+     -execdir unzip -n -q {} \;
+cd ..
+```
+
+```powershell
+# Windows PowerShell equivalent, from the top-level folder of the repository
+Get-ChildItem EXPERIMENT_RESULTS -Recurse -Filter *.zip |
+  Where-Object { $_.Name -notlike 'joularjx-result*' -and
+                 $_.Name -ne 'vm_scaphandre_6s_measurement_intervals.zip' } |
+  ForEach-Object { Expand-Archive -Path $_.FullName -DestinationPath $_.DirectoryName -Force }
+```
+
+Two kinds of archive are deliberately skipped:
+
+- The nested `joularjx-result_*.zip` archives inside the run directories. [`shared.py`](./EXPERIMENT_RESULTS/shared.py) extracts those on demand while parsing, so they can stay packed.
+- [`VM/vm_scaphandre_6s_measurement_intervals.zip`](./EXPERIMENT_RESULTS/VM/vm_scaphandre_6s_measurement_intervals.zip). Unlike every other archive, it does not wrap its contents in a run directory — it holds the timestamped scenario folders directly. Extracting it into `VM/` would make `build_run_dirs()` read those timestamps (`20260719_…`) as load levels and silently mix these supplementary runs into the regular VM results. Extract it to a scratch directory outside `EXPERIMENT_RESULTS/` if you want to inspect it.
+
+The extracted directories are listed in [`.gitignore`](./.gitignore) and therefore stay untracked; the archives remain the single source of truth.
+
+### Step 2: Install the analysis dependencies
+
+```bash
+pip install -r EXPERIMENT_RESULTS/requirements.txt
+```
+
+### Step 3: Run the scripts
+
+This repository contains several Python scripts for processing, analyzing, and visualizing the experimental results. These scripts are located in the [`EXPERIMENT_RESULTS/`](./EXPERIMENT_RESULTS/) folder. Most of the scripts are designed to be executed from the top-level folder of the repository (e.g., `python ./EXPERIMENT_RESULTS/createCpuUtilizationTableForAllLoadLevelsAndScenarios.py`). The only exceptions are the `create_power_consumption_barchart.py` and `visualizePowerCapAsBoxplot.py` scripts, which need to be executed from within the [`EXPERIMENT_RESULTS/`](./EXPERIMENT_RESULTS/) folder.
+
+All scripts locate their **input** data relative to their own file location, so it does not matter where they are started from. Their **output**, however, is written relative to the current working directory: most scripts write `./<name>.pdf` and therefore drop their figures into the folder you started them from, while the two exceptions above write `../<name>.pdf` — running those from the repository root would place the PDFs *outside* the repository, which is why they have to be started from inside `EXPERIMENT_RESULTS/`. Tables and statistics are printed to standard output rather than written to files.
 
 | Script Name | Description |
 | --- | --- |
@@ -275,11 +364,54 @@ This repository contains several Python scripts for processing, analyzing, and v
 | [`visualizePowerCapAsBoxplot.py`](./EXPERIMENT_RESULTS/visualizePowerCapAsBoxplot.py) | Visualizes power cap measurements as boxplots. |
 | [`createCpuUtilizationTableForAllLoadLevelsAndScenarios.py`](./EXPERIMENT_RESULTS/createCpuUtilizationTableForAllLoadLevelsAndScenarios.py) | Generates tables summarizing CPU utilization for all load levels and scenarios. |
 | [`createResponseTimeTableForAllLoadLevelsAndScenarios.py`](./EXPERIMENT_RESULTS/createResponseTimeTableForAllLoadLevelsAndScenarios.py) | Generates tables summarizing the client-observed JMeter response times per HTTP method for all load levels and scenarios (response-time overhead evaluation). |
-| [`count_jmeter_failures_by_load_and_tool.py`](./EXPERIMENT_RESULTS/count_jmeter_failures_by_load_and_tool.py) | Iterates all load levels and tool scenarios and prints the count of failed JMeter requests per result file. |
-| [`recalculate_smartwatts_results_by_load_and_run.py`](./EXPERIMENT_RESULTS/recalculate_smartwatts_results_by_load_and_run.py) | Recomputes missing or incomplete SmartWatts results from the downloaded PowerAPI sensor reports, in parallel across scenarios. |
+| [`count_jmeter_failures_by_load_and_tool.py`](./EXPERIMENT_RESULTS/count_jmeter_failures_by_load_and_tool.py) | Iterates all load levels and tool scenarios and reports failed JMeter requests. Only result files that actually contain failures are printed, so an environment listed with no lines beneath it had no failed requests. |
+| [`recalculate_smartwatts_results_by_load_and_run.py`](./EXPERIMENT_RESULTS/recalculate_smartwatts_results_by_load_and_run.py) | Recomputes missing or incomplete SmartWatts results from the downloaded PowerAPI sensor reports, in parallel across scenarios. **Extra prerequisites** — see the note below the table. |
 | [`statistical_appendix.py`](./EXPERIMENT_RESULTS/statistical_appendix.py) | Generates the consolidated statistical appendix for cross-table claims (e.g., tool accuracy vs. external-meter ground truth, Container vs. VM comparisons) that back the paper's headline results. |
 | [`characterize_workload_resource_profile.py`](./EXPERIMENT_RESULTS/characterize_workload_resource_profile.py) | Quantifies the test application's per-request resource-use profile (CPU time, memory allocation, disk/network I/O) per HTTP method, using OTJAE's per-transaction resource-demand instrumentation. |
 | [`shared.py`](./EXPERIMENT_RESULTS/shared.py) | Shared helper library used by all analysis scripts: directory traversal for the run/scenario structure described above, measurement file parsing, steady-state trimming, per-repetition aggregation, and the statistical helpers (Cohen's d, exact Wilcoxon signed-rank and Mann-Whitney U tests). Not executed directly. |
+
+Two scripts accept command line options; all others take no arguments:
+
+- `visualizeLoadLevelContainerPowerConsumptionAsBoxplots.py --environment Container VM` restricts the run to the named environments (all discovered environments by default).
+- `recalculate_smartwatts_results_by_load_and_run.py` offers `--dry-run`, `--force-remove`, `--stop-on-error`, `--environment`, `--max-workers`, `--engine`, `--wsl-distro`, and `--wsl-python`. Run it with `--help` for the full descriptions.
+
+> [!IMPORTANT]
+> **Extra prerequisites for `recalculate_smartwatts_results_by_load_and_run.py`.** Unlike the other analysis scripts, this one does not just read the shipped data — it re-runs the SmartWatts formula over the raw PowerAPI sensor reports, which requires one of two external execution engines:
+>
+> - `--engine podman` (default) needs [Podman](https://podman.io/) installed; it runs the containerized `powerapi/smartwatts-formula` image.
+> - `--engine wsl` needs a WSL2 distribution with `pip install smartwatts` performed inside it. This engine exists because SmartWatts' actor IPC uses ZeroMQ `ipc://` Unix domain sockets, which native Windows Python cannot use. Because that socket path is fixed rather than per-process, this engine always runs scenarios serially and ignores `--max-workers`.
+>
+> **You do not need either engine to reproduce the paper's results**: the SmartWatts outputs are already contained in the shipped `spring_docker_powerapi*` run archives, and every other script reads them directly. This script is only needed if you re-run the PowerAPI experiments yourself, or want to verify the offline attribution step.
+
+### Mapping to the Figures and Tables of the Paper
+
+The scripts write environment-suffixed file names (e.g. `..._Container_all_loads.pdf`), whereas some figures were included in the manuscript under a shortened name. The following table maps each figure and table of the paper to the script that produces it:
+
+| **Paper artifact** | **Produced by** | **Output** |
+| --- | --- | --- |
+| Fig. "Idle power consumption" | [`visualizeIdlePowerConsumptionAsBoxPlot.py`](./EXPERIMENT_RESULTS/visualizeIdlePowerConsumptionAsBoxPlot.py) | `idle_power_consumption_boxplot_<env>.pdf` |
+| Fig. "System power depending on utilization" | [`visualizeLoadLevelSystemPowerConsumptionAsBoxplots.py`](./EXPERIMENT_RESULTS/visualizeLoadLevelSystemPowerConsumptionAsBoxplots.py) | `power_consumption_boxplots_<env>_all_loads.pdf` |
+| Fig. "Delta power depending on load level" | [`visualizeLoadLevelSystemPowerConsumptionAsBoxplots.py`](./EXPERIMENT_RESULTS/visualizeLoadLevelSystemPowerConsumptionAsBoxplots.py) | `delta_power_vs_loadlevel_<env>.pdf` |
+| Figs. "Container-level power consumption by load" (Container and VM) | [`visualizeLoadLevelContainerPowerConsumptionAsBoxplots.py`](./EXPERIMENT_RESULTS/visualizeLoadLevelContainerPowerConsumptionAsBoxplots.py) | `container_power_consumption_boxplots_<env>_all_loads.pdf` |
+| Figs. "Process-level power consumption by load" (Container and VM) | [`visualizeLoadLevelProcessPowerConsumptionAsBoxplots.py`](./EXPERIMENT_RESULTS/visualizeLoadLevelProcessPowerConsumptionAsBoxplots.py) | `process_power_consumption_boxplots_<env>_all_loads.pdf` |
+| Figs. "Transaction-level power consumption by load" (Container and VM) | [`visualizeLoadLevelTransactionPowerConsumptionAsBoxplots.py`](./EXPERIMENT_RESULTS/visualizeLoadLevelTransactionPowerConsumptionAsBoxplots.py) | `transaction_power_consumption_boxplots_<env>_all_loads.pdf` |
+| Figs. "Process-level power consumption with distributed load" (RS2 and RS3) | [`fig_rs2_rs3.py`](./EXPERIMENT_RESULTS/fig_rs2_rs3.py) | `process_power_consumption_boxplots_RS2_all_loads.pdf`, `..._RS3_all_loads.pdf` |
+| Fig. "Power distribution of experiment runs" | [`visualizePowerCapAsBoxplot.py`](./EXPERIMENT_RESULTS/visualizePowerCapAsBoxplot.py) | `boxplot_total_power_by_load_and_run_<env>.pdf` |
+| Fig. "Percentage of overall power draw" (Discussion) | [`create_power_consumption_barchart.py`](./EXPERIMENT_RESULTS/create_power_consumption_barchart.py) | `power_consumption_combined_barchart.pdf` |
+| Tables "Container-level power depending on throughput" (Container and VM) | [`visualizeLoadLevelContainerPowerConsumptionAsBoxplots.py`](./EXPERIMENT_RESULTS/visualizeLoadLevelContainerPowerConsumptionAsBoxplots.py) | printed to stdout |
+| Tables "Process-level power depending on throughput" (Container and VM) | [`visualizeLoadLevelProcessPowerConsumptionAsBoxplots.py`](./EXPERIMENT_RESULTS/visualizeLoadLevelProcessPowerConsumptionAsBoxplots.py) | printed to stdout |
+| Tables "Power consumption per transaction" (Container and VM) | [`visualizeLoadLevelTransactionPowerConsumptionAsBoxplots.py`](./EXPERIMENT_RESULTS/visualizeLoadLevelTransactionPowerConsumptionAsBoxplots.py) | printed to stdout |
+| Table "RS2/RS3 load distribution" | [`fig_rs2_rs3.py`](./EXPERIMENT_RESULTS/fig_rs2_rs3.py) | printed to stdout |
+| Table "Mean system power consumption by load level" | [`visualizeLoadLevelSystemPowerConsumptionAsBoxplots.py`](./EXPERIMENT_RESULTS/visualizeLoadLevelSystemPowerConsumptionAsBoxplots.py) | printed to stdout |
+| Table "Mean CPU utilization by load level and test setup" (overhead evaluation) | [`createCpuUtilizationTableForAllLoadLevelsAndScenarios.py`](./EXPERIMENT_RESULTS/createCpuUtilizationTableForAllLoadLevelsAndScenarios.py) | printed to stdout |
+| Table "Response time overhead" | [`createResponseTimeTableForAllLoadLevelsAndScenarios.py`](./EXPERIMENT_RESULTS/createResponseTimeTableForAllLoadLevelsAndScenarios.py) | printed to stdout |
+| Appendix table "Workload resource profile" | [`characterize_workload_resource_profile.py`](./EXPERIMENT_RESULTS/characterize_workload_resource_profile.py) | printed to stdout |
+| Significance tests quoted throughout the results section | [`statistical_appendix.py`](./EXPERIMENT_RESULTS/statistical_appendix.py) | printed to stdout |
+| Supporting check that no load level suffered failed requests | [`count_jmeter_failures_by_load_and_tool.py`](./EXPERIMENT_RESULTS/count_jmeter_failures_by_load_and_tool.py) | printed to stdout |
+
+Note that [`create_power_consumption_barchart.py`](./EXPERIMENT_RESULTS/create_power_consumption_barchart.py) does not recompute all of its inputs. Its `SCENARIO_CONSTANTS` dictionary holds point estimates that were transcribed by hand from the output of the container-, process-, and transaction-level scripts listed above; if you regenerate those results, the constants have to be updated alongside them.
+
+The remaining figures of the paper (the attribution-model illustrations, the experiment setup, and the runtime setups) are not generated from measurement data. Their sources are kept with the manuscript rather than in this package.
 
 ## Notes
 

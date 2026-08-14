@@ -15,6 +15,11 @@ from shared import build_run_dirs, discover_environments, scenario_matches
 
 
 def _matches_category(scenario_dir_name: str) -> bool:
+    """Return True for the six scenarios that were driven by a JMeter load.
+
+    The idle scenarios (``baseline_idle_no_tools``, ``spring_docker_none``)
+    have no JMeter results and are therefore excluded.
+    """
     return scenario_matches(scenario_dir_name, "kepler") or \
            scenario_matches(scenario_dir_name, "scaphandre") or \
            scenario_matches(scenario_dir_name, "otjae") or \
@@ -64,6 +69,16 @@ def count_false_success_rows(jtl_file: Path, trim_seconds: float = 60,) -> int:
 
 
 def main() -> None:
+    """Report failed JMeter requests across all environments and scenarios.
+
+    Every ``.jtl`` result file of the load-driven scenarios is scanned, but only
+    those that actually contain failures are printed — so an environment
+    listed with no lines beneath it had no failed requests at all.
+
+    This quantifies how much of the offered load was really served, so the
+    reported response times and power values can be judged against the error
+    rate behind them.
+    """
     root = Path(__file__).resolve().parent
     env_names = discover_environments(root)
     if not env_names:

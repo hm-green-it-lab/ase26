@@ -1,0 +1,7 @@
+# Dependencies for the analysis and visualization scripts (EXPERIMENT_RESULTS/).
+# The experiment automation has its own dependency list in
+# ../EXPERIMENT_AUTOMATION/requirements.txt.
+pandas
+numpy
+matplotlib
+seaborn

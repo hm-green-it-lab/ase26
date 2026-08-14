@@ -173,6 +173,12 @@ def parse_kepler_http_logger(
                         records.append((pid, current_timestamp, float(value)))
 
     def build_df(pids):
+        """Build the trimmed power time series for the given set of PIDs.
+
+        Filters the parsed records down to *pids* and applies the same
+        steady-state trim as the rest of the analysis, so C1 and C2 can be
+        built as separate series without re-reading the file.
+        """
         rows = [
             {'datetime': pd.to_datetime(ts, unit='ms'), 'Power': value}
             for pid, ts, value in records
@@ -370,6 +376,33 @@ def parse_procfs_joularjx(
 
 
 def process_docker_otjae(scenario_dir, trim_seconds, pcpumin, pcpumax, split_containers=False):
+    """Compute the OTJAE model-based process power series for one RS2/RS3 run.
+
+    Same model as in ``visualizeLoadLevelProcessPowerConsumptionAsBoxplots.py``
+    — system CPU power interpolated between *pcpumin* and *pcpumax*, attributed
+    by the process' share of consumed CPU time, plus memory and storage power —
+    but able to report the two co-located containers separately.
+
+    Parameters
+    ----------
+    scenario_dir :
+        A single timestamped ``*_otjae_rs2``/``_rs3`` scenario directory.
+    trim_seconds :
+        Steady-state trim applied when no JMeter bounds are found.
+    pcpumin, pcpumax :
+        Idle and maximum system CPU power in Watts.
+    split_containers :
+        When True, return one series per container (C1, C2) instead of a single
+        combined series. This is what makes the per-container comparison
+        against the enforced load split possible.
+
+    Returns
+    -------
+    pandas.Series, list of pandas.Series, or None
+        Per-second process power in Watts — a list of two series when
+        *split_containers* is set — or ``None`` when the run lacks the procfs
+        capture, the service PIDs, or usable utilization data.
+    """
     # Find jmeter bounds
     jmeter_bounds = get_jmeter_time_bounds(str(scenario_dir), trim_seconds)
     # Find procfs file - match both spring_docker and spring_vm

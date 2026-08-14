@@ -111,6 +111,13 @@ def collect_samples() -> dict[str, dict[str, list[float]]]:
 
 
 def main():
+    """Print the per-request resource-use profile behind the appendix table.
+
+    Aggregates the OTJAE per-transaction resource demands across all RS1
+    Container load levels and repetitions and reports CPU time, memory
+    allocation, and disk/network I/O per HTTP method, characterizing what the
+    test application actually does per request.
+    """
     samples, total_requests = collect_samples()
 
     print("=== Per-request resource-use profile (RS1 Container, all load levels/repetitions) ===\n")

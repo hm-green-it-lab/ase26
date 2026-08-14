@@ -1,3 +1,29 @@
+"""
+vm.py
+
+Helpers for the ``spring_vm_*`` experiments, in which the application container
+runs inside a QEMU/KVM guest VM on the SUT rather than directly on the host.
+
+These functions extend the Container-environment workflow with the extra steps
+the VM environment needs:
+
+- ``sync_files_to_host`` / ``sync_files`` upload the docker and VM assets to
+  the SUT host and into the guest respectively;
+- ``prepare_vm`` boots the guest through the scripts in ``vms/`` and waits for
+  its SSH endpoint to answer;
+- ``mount_share`` sets up the host/guest share through which the host-side
+  measurement tools hand their attributed power values to the guest (used by
+  Scaphandre and PowerJoular, which have to observe the
+  ``qemu-system-x86_64`` process from outside the VM);
+- ``cleanup_vm_docker`` and ``cleanup_joularjx_vm`` return the guest to a
+  clean state between repetitions.
+
+The guest is addressed via ``VM_HOST``/``VM_PORT`` from ``paths.env``, which
+point at the QEMU SSH port forward configured in ``vms/``, and authenticated
+with ``VM_SSH_USER``/``VM_SSH_PASSWORD`` from ``.env``. The VM disk image
+itself is not created here — see ``VM_setup.md``.
+"""
+
 from __future__ import annotations
 from helper.hooks import _connect
 import os
@@ -193,7 +219,10 @@ def sync_files(config: dict) -> None:
 
     local_docker_dir = Path("docker")
 
-    # TODO: later replace with VM_BASE_DIR from configuration
+    # NOTE: hardcoded to the guest user of the VM image used in the paper.
+    # This intentionally does not read VM_BASE_DIR from paths.env yet, so if
+    # your guest uses a different user or home directory you have to adjust it
+    # here as well as in paths.env. (TODO: read VM_BASE_DIR from the config.)
     remote_base_dir = "/home/userv"
 
     print(
@@ -393,7 +422,12 @@ def cleanup_vm_docker(config: dict, measurement_tool) -> None:
         client.close()
 
 def validate_pipeline(config: dict) -> None:
-    # TODO: optional future validation step
+    """Placeholder for an optional pre-run validation of the VM pipeline.
+
+    Intentionally does nothing. It is kept as an explicit extension point so
+    that callers can already invoke it; the VM experiments in the paper relied
+    on the checks in ``prepare_vm`` and ``_wait_for_vm_ssh`` instead.
+    """
     pass
 
 

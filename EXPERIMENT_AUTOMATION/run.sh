@@ -1,4 +1,19 @@
 #!/bin/bash
+#
+# Run several experiment configurations back-to-back (Linux/bash counterpart
+# of run.ps1).
+#
+# This is an EXAMPLE sweep, not a fixed protocol: the load levels, repetition
+# count, and configuration list below are the ones used for one particular
+# measurement campaign. Adjust the variables in the block underneath to match
+# the configurations you want to run.
+#
+# Each iteration invokes `main.py --config <configuration>` and then waits
+# WAIT_BETWEEN_RUNS_SECONDS before the next one, so the machine returns to a
+# comparable thermal state between measurements.
+#
+# Prerequisites: `.env` and `paths.env` configured, and the SUT and JMeter load
+# driver set up (see setup/01_README.md).
 
 set -e
 

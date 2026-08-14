@@ -113,6 +113,12 @@ def create_power_consumption_barchart(load_levels, output_path, trim_seconds=0):
         # conflating two different scenarios (pure idle vs. TS1/RS1 with
         # monitoring attached).
         def _is_baseline_tools_dir(name):
+            """True for TS1 baseline dirs, excluding ``baseline_idle_no_tools``.
+
+            A plain ``endswith('_tools')`` would also match ``no_tools``, which
+            would merge pure idle measurements into the TS1 bucket and inflate
+            n while conflating two different scenarios.
+            """
             return name.endswith('_tools') and not name.endswith('no_tools')
 
         experiment_dirs = []
@@ -377,8 +383,11 @@ def create_power_consumption_barchart(load_levels, output_path, trim_seconds=0):
             else:
                 print(f"  Load {load}: data missing")
 
-# Example usage:
-load_levels = [0, 230, 350, 480, 560]
-create_power_consumption_barchart(load_levels,
-                                  "../power_consumption_combined_barchart.pdf",
-                                  trim_seconds=60)
+if __name__ == "__main__":
+    # Note the "../" in the output path: this script writes one level above the
+    # current working directory and therefore has to be started from inside
+    # EXPERIMENT_RESULTS/, not from the repository root.
+    load_levels = [0, 230, 350, 480, 560]
+    create_power_consumption_barchart(load_levels,
+                                      "../power_consumption_combined_barchart.pdf",
+                                      trim_seconds=60)

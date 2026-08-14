@@ -10,8 +10,8 @@ import pandas as pd
 import numpy as np
 from pathlib import Path
 
-# Konfiguration: Verzeichnisse mit neuen powercap-Dateien (Energie in µJ)
-# Erwartetes Dateimuster: powercap_*.csv in den Last-Unterordnern
+# Input: powercap_*.csv files (cumulative energy in µJ) in the load-level
+# subfolders of each environment.
 from shared import (
     read_measurement_csv,
     build_run_dirs,
@@ -41,6 +41,26 @@ run_mapping = {
 }
 
 def find_powercap_files(environment=None):
+    """Locate every ``powercap_*.csv`` belonging to a known test setup.
+
+    Walks the run/scenario structure via ``build_run_dirs`` and keeps only
+    scenario folders whose trailing tool suffix is one of the setups analysed
+    here, mapping each to its display label (e.g. ``spring_docker_otjae`` ->
+    ``OTJAE``). Load level 0 is intentionally not part of ``last_to_load`` and
+    therefore excluded.
+
+    Parameters
+    ----------
+    environment :
+        Restrict to one environment (``"Container"``, ``"VM"``, …), or ``None``
+        to scan all of them.
+
+    Returns
+    -------
+    list of dict
+        One entry per file with its path, load label in paper notation, raw
+        numeric load, tool label, and repetition folder name.
+    """
     rows = []
 
     # Use shared helper so we find directories both flat and nested (Container/VM/)
@@ -78,14 +98,33 @@ def find_powercap_files(environment=None):
     return rows
 
 def energy_to_power(df: pd.DataFrame) -> pd.DataFrame:
-    # Spalten normalisieren
-    # Erwartete Spalten: Timestamp, Domain, Energy (micro joules), DRAM Energy (micro joules)
-    # Timestamp in ms (int), Energien kumuliert in µJ
+    """Convert cumulative RAPL energy counters into per-sample power in Watts.
+
+    Expects the raw powercap reader columns ``Timestamp`` (ms),``Domain``,
+    ``Energy (micro joules)``, and ``DRAM Energy (micro joules)``, where both
+    energy columns are cumulative counters.
+
+    Only ``package-*`` domains are considered, so each CPU socket contributes
+    once and nested subdomains are not double-counted. Power is derived per
+    domain as ``dE/dt`` and the domains are then summed per timestamp, giving
+    the whole-system package power. Samples with a non-positive time delta or a
+    negative energy delta are dropped, which discards RAPL counter overflows.
+    A DRAM reading of ``-1`` means the domain is unavailable on this hardware
+    and is treated as missing rather than as zero.
+
+    Returns
+    -------
+    pandas.DataFrame
+        Columns ``Timestamp``, ``P_pkg_W``, ``P_dram_W``, and
+        ``Total Power (Watts)``. Empty (with the expected columns) if the input
+        has no ``Domain`` column, which happens for malformed captures.
+    """
+    # Normalize the column names; the reader emits leading spaces on some of them
     df = df.rename(columns={
         " Energy (micro joules)": " Energy (micro joules)",
         " DRAM Energy (micro joules)": "DRAM Energy (micro joules)",
     })
-    # String-Trim für evtl. führende/trailing Spaces
+    # Trim any remaining leading/trailing spaces
     df.columns = [c.strip() for c in df.columns]
 
     # Debug: print column names for first file to catch mismatches
@@ -93,20 +132,20 @@ def energy_to_power(df: pd.DataFrame) -> pd.DataFrame:
         print(f"  WARNING: '{df.columns.tolist()}' missing 'Domain' column, skipping {df}")
         return pd.DataFrame(columns=["Timestamp", "Total Power (Watts)"])
 
-    # Nur Pakete (Domain beginnt mit 'package-')
+    # Packages only (domain name starts with 'package-')
     df = df[df["Domain"].astype(str).str.startswith("package-")].copy()
 
-    # Nach Domain und Timestamp sortieren
+    # Sort by domain and timestamp
     df["Timestamp"] = pd.to_numeric(df["Timestamp"], errors="coerce").astype("int64")
     df = df.sort_values(["Domain", "Timestamp"])
 
-    # Differenzen je Domain berechnen
+    # Compute the deltas per domain
     for col in ["Energy (micro joules)", "DRAM Energy (micro joules)"]:
         if col in df.columns:
             df[col] = pd.to_numeric(df[col], errors="coerce")
 
     df["dE_pkg_uJ"] = df.groupby("Domain")["Energy (micro joules)"].diff()
-    # DRAM ist ggf. -1 -> ignorieren
+    # DRAM may report -1 when unavailable -> ignore those readings
     if "DRAM Energy (micro joules)" in df.columns:
         dram_valid = df["DRAM Energy (micro joules)"].where(df["DRAM Energy (micro joules)"] >= 0, np.nan)
         df["dE_dram_uJ"] = df.groupby("Domain")[dram_valid.name].diff()
@@ -115,26 +154,40 @@ def energy_to_power(df: pd.DataFrame) -> pd.DataFrame:
 
     df["dt_ms"] = df.groupby("Domain")["Timestamp"].diff()
 
-    # Leistung berechnen: P = dE/dt; µJ/ms == mW
-    # In Watt: (µJ/ms)/1000
+    # Compute power: P = dE/dt; µJ/ms == mW, so divide by 1000 to get Watts
     df["P_pkg_W"] = (df["dE_pkg_uJ"] / df["dt_ms"]) / 1000.0
     df["P_dram_W"] = (df["dE_dram_uJ"] / df["dt_ms"]) / 1000.0
 
-    # Nur gültige Zeilen (positive dt und dE)
+    # Keep only valid rows (positive dt, non-negative dE), which drops the
+    # first sample per domain and any RAPL counter overflow
     df = df[(df["dt_ms"] > 0) & (df["dE_pkg_uJ"] >= 0)]
 
-    # Über Domains aggregieren (Summe der Packages)
+    # Aggregate across domains (sum over the CPU packages)
     agg = df.groupby("Timestamp").agg(
         P_pkg_W=("P_pkg_W", "sum"),
         P_dram_W=("P_dram_W", "sum"),
     ).reset_index()
 
-    # Totalleistung
+    # Total power
     agg["Total Power (Watts)"] = agg["P_pkg_W"].fillna(0) + agg["P_dram_W"].fillna(0)
 
     return agg
 
 def load_all_runs(file_rows):
+    """Load and concatenate every file found by :func:`find_powercap_files`.
+
+    Each file is converted to power and then trimmed to its steady-state
+    window: samples from 60 s to 660 s relative to the start of the capture,
+    which excludes the JVM warm-up at the beginning and the ramp-down at the
+    end so only the fully loaded phase is compared across runs.
+
+    Returns
+    -------
+    pandas.DataFrame
+        All runs stacked, tagged with ``load``, ``run`` (tool label), and
+        ``run_label`` (repetition folder). Empty with the expected columns when
+        *file_rows* is empty.
+    """
     data_frames = []
     for info in file_rows:
         df_raw = read_measurement_csv(info["file"])
@@ -152,6 +205,16 @@ def load_all_runs(file_rows):
     return pd.concat(data_frames, ignore_index=True)
 
 def main():
+    """Generate the total-power boxplots and print the summary table.
+
+    Produces one ``../boxplot_total_power_by_load_and_run_{env}.pdf`` per
+    environment — the "power distribution of experiment runs" figure of the
+    paper — plus a combined summary table across environments.
+
+    Note the ``../`` in the output path: this script writes one level above the
+    current working directory and therefore has to be started from inside
+    ``EXPERIMENT_RESULTS/``, not from the repository root.
+    """
     from shared import discover_environments
 
     exp_results = Path(__file__).resolve().parent

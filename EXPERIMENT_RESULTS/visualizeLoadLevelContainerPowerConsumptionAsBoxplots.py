@@ -50,6 +50,11 @@ def parse_kepler_http_logger(file_path, service_pids, trim_seconds=0, jmeter_bou
     kepler_cont_re = re.compile(r'kepler_container_cpu_watts\{([^}]*)\} ([\d\.eE+-]+)')
     # Helper to parse label string into dict
     def parse_labels(label_str):
+        """Parse a Prometheus label string into a dict.
+
+        Turns ``pid="123",container_id="abc"`` into
+        ``{"pid": "123", "container_id": "abc"}``.
+        """
         return dict(re.findall(r'(\w+)="([^"]*)"', label_str))
     
     with open(file_path, 'r', encoding='utf-8', errors='ignore') as f:
@@ -58,6 +63,17 @@ def parse_kepler_http_logger(file_path, service_pids, trim_seconds=0, jmeter_bou
         cont_metrics = []
         
         def flush_timestamp():
+            """Emit one power sample for the timestamp just finished parsing.
+
+            Kepler exposes process- and container-level gauges as separate
+            metric lines under the same scrape timestamp, so the lines have to
+            be buffered and resolved together once the timestamp changes.
+
+            Only processes belonging to the service under test are kept. For
+            those, the container-level value is preferred and the
+            process-level value is used as a fallback when the process carries
+            no container id or no matching container gauge was scraped.
+            """
             if current_timestamp is None or not proc_metrics:
                 return
             dt = pd.to_datetime(current_timestamp, unit='ms')
@@ -374,6 +390,7 @@ def plot_all_load_levels_in_one_row(data_by_env, output_path, scenario_suffixes=
 
 
 def parse_args():
+    """Parse the command line options for this script."""
     parser = argparse.ArgumentParser(
         description="Generate container power consumption boxplots by load level."
     )
@@ -460,6 +477,7 @@ def main():
         return summarize_repetitions(ratios)
 
     def fmt_pct(stats):
+        """Format a mean/std pair for a LaTeX table cell, or ``-`` if absent."""
         if stats["mean"] is None:
             return "-"
         return fmt_mean_std(stats["mean"], stats["std"], unit="")

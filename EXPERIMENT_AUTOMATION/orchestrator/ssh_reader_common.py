@@ -98,6 +98,19 @@ def get_vm_pid(
     username: str,
     password: str,
 ) -> str:
+    """Return the host PID of the QEMU process running the guest VM.
+
+    Looks up the ``qemu-system-x86_64`` process started by ``vms/start_vm1.sh``
+    via its ``guest=vm1`` name. In the VM experiments this PID is what the
+    host-side tools (Scaphandre, PowerJoular, ProcFSReader) attribute power and
+    resource demand to, since from the host's perspective the entire guest is
+    that single process.
+
+    Raises
+    ------
+    RuntimeError
+        If no matching process is running, i.e. the VM was not started.
+    """
     ssh = connect_ssh(
         hostname=hostname,
         username=username,

@@ -1,14 +1,20 @@
-# helper/jmeter.py
 """
-Remote JMeter runner, fetcher, and shutdown helpers.
+helper/joularjx.py
 
-Highlights
-----------
-- Filenames follow the common pattern:
-    {tool}_{experiment_type}_{YYYYMMDD_%H%M%S}_{iter}_{total}.{ext}
-  e.g., configeter_teastore_tomcat_idle_20250819_110131_1_3.jtl
+Collection of JoularJX measurement artifacts after a ``spring_*_joularjx`` run.
 
-- Public function signatures and behavior are unchanged (call sites unaffected).
+JoularJX writes a large number of small per-method and per-thread CSV files
+into its result directory on the measured machine. Transferring those
+individually over SFTP is prohibitively slow, so this module first zips the
+result directory remotely and then downloads the archive.
+
+The archives land in ``{local_output_root}/joularjx-result_{HHMMSS}/`` and are
+kept packed: the analysis scripts extract them on demand (see
+``extract_joularjx_zip`` in ``EXPERIMENT_RESULTS/shared.py``).
+
+The remote host is the guest VM for ``spring_vm_*`` experiments and the SUT
+otherwise. In the RS2/RS3 load distribution experiments both containers are
+collected, with the second one's artifacts suffixed ``-2``.
 """
 
 from __future__ import annotations
@@ -24,6 +30,30 @@ def fetch_joularjx_artifacts(
     local_output_root: str,
     cleanup_remote: bool = True
 ) -> None:
+    """Zip JoularJX's results on the remote host and download them.
+
+    For each result directory (one per application container; RS2/RS3 runs have
+    two), the directory is chowned to the SSH user, zipped remotely into
+    ``joularjx_zip_dir``, and then fetched via SFTP.
+
+    Parameters
+    ----------
+    config :
+        The ``experiment`` section of the run configuration. Determines the
+        remote host (guest VM for ``spring_vm_*`` types, SUT otherwise) and
+        supplies ``joularjx_result_dir`` and ``joularjx_zip_dir``.
+    local_output_root :
+        Local run directory the archives are placed in, under a
+        ``joularjx-result_{HHMMSS}`` subfolder.
+    cleanup_remote :
+        When True (default), the contents of the remote result directories are
+        deleted afterwards, so the next repetition starts from an empty
+        directory and cannot pick up stale measurements.
+
+    The function returns without doing anything if the host or remote
+    directory is not configured, and raises RuntimeError if the remote zip
+    fails.
+    """
     experiment = config
 
     if experiment["type"].startswith("spring_vm_"):
@@ -51,7 +81,7 @@ def fetch_joularjx_artifacts(
         result_dirs.append(f"{joularjx_result_dir}-2")
 
     if not sut_host or not remote_dir:
-        print("[JMeter][fetch] Missing target_host/remote_dir; skip fetch.")
+        print("[JoularJX][fetch] Missing target_host/remote_dir; skip fetch.")
         return
 
     # Determine destination folder based on the dt used for filenames
@@ -122,19 +152,35 @@ def fetch_joularjx_artifacts(
         ssh.close()
 
 def download_and_cleanup_sftp_recursive(hostname, username, password, joularjx_result_dir, local_output_dir, cleanup_remote=False,port=22,):
+    """Recursively download a remote directory tree over SFTP.
+
+    Mirrors *joularjx_result_dir* into *local_output_dir*, creating local
+    directories as needed. When *cleanup_remote* is True, each file is removed
+    right after it has been downloaded and each directory once it is empty, so
+    the remote side is left clean for the next repetition.
+
+    Every processed path is printed, so an interrupted transfer can be traced
+    in the console output.
+
+    Raises
+    ------
+    Exception
+        Any SFTP or filesystem error is re-raised after being reported; the
+        transport is always closed.
+    """
     try:
-        # SFTP-Verbindung aufbauen
+        # Establish the SFTP connection
         transport = paramiko.Transport((hostname, port))
         transport.connect(username=username, password=password)
         sftp = paramiko.SFTPClient.from_transport(transport)
 
-        # Stelle sicher, dass das lokale Verzeichnis existiert
+        # Make sure the local directory exists
         os.makedirs(local_output_dir, exist_ok=True)
 
         def process_directory(remote_dir, local_dir):
-            """Rekursive Funktion zum Verarbeiten von Verzeichnissen"""
+            """Recursively download one remote directory into *local_dir*."""
             try:
-                # Liste alle Einträge im aktuellen Remote-Verzeichnis
+                # List all entries in the current remote directory
                 items = sftp.listdir_attr(remote_dir)
 
                 for item in items:
@@ -142,47 +188,47 @@ def download_and_cleanup_sftp_recursive(hostname, username, password, joularjx_r
                     local_path = os.path.join(local_dir, item.filename)
 
                     if S_ISDIR(item.st_mode):
-                        # Wenn es ein Verzeichnis ist, erstelle es lokal und verarbeite rekursiv
-                        print(f"Verarbeite Verzeichnis: {remote_path}")
+                        # Directory: create it locally and recurse into it
+                        print(f"Processing directory: {remote_path}")
                         os.makedirs(local_path, exist_ok=True)
                         process_directory(remote_path, local_path)
 
-                        # Lösche leeres Remote-Verzeichnis nach Verarbeitung wenn cleanup aktiviert
+                        # Remove the now-empty remote directory if cleanup is enabled
                         if cleanup_remote:
                             sftp.rmdir(remote_path)
                     else:
-                        # Wenn es eine Datei ist, lade sie herunter
-                        print(f"Lade herunter: {remote_path}")
+                        # File: download it
+                        print(f"Downloading: {remote_path}")
                         sftp.get(remote_path, local_path)
 
-                        # Lösche Remote-Datei falls cleanup_remote aktiviert ist
+                        # Remove the remote file if cleanup_remote is enabled
                         if cleanup_remote:
-                            print(f"Lösche Remote-Datei: {remote_path}")
+                            print(f"Deleting remote file: {remote_path}")
                             sftp.remove(remote_path)
 
             except Exception as e:
-                print(f"Fehler beim Verarbeiten von Verzeichnis {remote_dir}: {str(e)}")
+                print(f"Error while processing directory {remote_dir}: {str(e)}")
                 raise
 
         try:
-            # Starte den rekursiven Download-Prozess
+            # Start the recursive download
             process_directory(joularjx_result_dir, local_output_dir)
 
             if cleanup_remote:
-                print(f"Alle Dateien aus {joularjx_result_dir} wurden rekursiv heruntergeladen und gelöscht")
+                print(f"All files from {joularjx_result_dir} were downloaded recursively and deleted")
             else:
-                print(f"Alle Dateien aus {joularjx_result_dir} wurden rekursiv heruntergeladen")
+                print(f"All files from {joularjx_result_dir} were downloaded recursively")
 
         except Exception as e:
-            print(f"Fehler beim Verarbeiten der Dateien: {str(e)}")
+            print(f"Error while processing the files: {str(e)}")
             raise
 
     except Exception as e:
-        print(f"Fehler beim Verbindungsaufbau: {str(e)}")
+        print(f"Error while establishing the connection: {str(e)}")
         raise
 
     finally:
-        # Verbindung schließen
+        # Close the connection
         if 'sftp' in locals():
             sftp.close()
         if 'transport' in locals():

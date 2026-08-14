@@ -371,6 +371,12 @@ def parse_scaphandre_http_logger(
                         records.append((pid, current_timestamp, float(value) / 1_000_000))
 
     def build_df(pids):
+        """Build the trimmed power time series for the given set of PIDs.
+
+        Filters the parsed records down to *pids* and applies the same
+        steady-state trim as the rest of the analysis, so the caller can build
+        one series per container without re-reading the file.
+        """
         rows = [
             {"datetime": pd.to_datetime(ts, unit="ms"), "Power": value}
             for pid, ts, value in records
@@ -658,6 +664,13 @@ def parse_joularjx_power(
     empty = pd.DataFrame(columns=["datetime", "Power"])
 
     def find_result_dir(suffix: str):
+        """Locate the JoularJX result directory for one container.
+
+        Prefers the packed ``joularjx-result{suffix}_*.zip`` archive, extracting
+        it on demand; falls back to an already-extracted directory. *suffix* is
+        empty for the first container and ``-2`` for the second one in the
+        RS2/RS3 runs. Returns ``None`` when neither is present.
+        """
         zip_candidates = sorted(scenario_dir.glob(f"**/joularjx-result{suffix}_*.zip"))
         if zip_candidates:
             return _ensure_joularjx_extracted(zip_candidates[0])
@@ -670,6 +683,7 @@ def parse_joularjx_power(
         return None
 
     def load(suffix: str) -> pd.DataFrame:
+        """Parse one container's JoularJX results, or return an empty frame."""
         result_dir = find_result_dir(suffix)
         if result_dir is None:
             return empty
@@ -917,6 +931,11 @@ def cohens_d_independent(sample_a: list[float], sample_b: list[float]) -> float 
 
 
 def _std_normal_cdf(x: float) -> float:
+    """Standard normal CDF, used for the normal approximation of U/W.
+
+    Implemented via ``math.erf`` so the statistical helpers in this module stay
+    free of a scipy dependency.
+    """
     return 0.5 * (1 + math.erf(x / math.sqrt(2)))
 
 
