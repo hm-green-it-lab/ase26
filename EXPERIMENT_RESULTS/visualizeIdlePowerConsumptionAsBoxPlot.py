@@ -16,9 +16,7 @@ from shared import (
     trim_time_series as _shared_trim_time_series,
     summarize_repetitions,
     cohens_d_paired,
-    cohens_d_independent,
     wilcoxon_signed_rank_exact,
-    mann_whitney_u_exact,
     fmt_mean_std,
 )
 
@@ -329,46 +327,6 @@ def create_power_consumption_boxplot(data_dirs, output_path, custom_labels=None,
         if wilcoxon_pooled["p_two_sided"] is not None:
             print(f"%   Wilcoxon signed-rank: W+={wilcoxon_pooled['statistic']:.1f}, p={wilcoxon_pooled['p_two_sided']:.4f} (p_floor={wilcoxon_pooled['p_floor']:.4f})")
 
-    # (b) Cross-scenario independent comparisons: each scenario is its own
-    # test setup/execution, so these are treated as independent samples
-    # (same uniform rule as the load-level tables), pooling nothing further
-    # since idle has only one measurement point (no load levels to pool
-    # across) -- at n=3 vs n=3 the Mann-Whitney exact p-floor is 0.1, so
-    # these tests can never reach conventional significance; Cohen's d is
-    # the primary evidence here, and the (floor-limited) p is reported for
-    # transparency rather than as a claim of significance.
-    def _independent_note(kind, baseline_key, target_key, per_run_dict):
-        """Print an independent-sample comparison of two idle scenarios.
-
-        Reports Cohen's d and an exact Mann-Whitney U test for *target_key*
-        against *baseline_key*. The test is independent rather than paired
-        because the idle scenarios were recorded in separate sessions and
-        cannot be matched run for run; with only three repetitions per
-        scenario the p-value is floor-limited, so the effect size is the
-        primary evidence and p is reported for transparency.
-        """
-        baseline_vals = list(per_run_dict.get(baseline_key, {}).values())
-        target_vals = list(per_run_dict.get(target_key, {}).values())
-        if not baseline_vals or not target_vals:
-            return
-        d_indep = cohens_d_independent(target_vals, baseline_vals)
-        mw = mann_whitney_u_exact(target_vals, baseline_vals)
-        target_label = scenario_labels.get(target_key, target_key)
-        baseline_label = scenario_labels.get(baseline_key, baseline_key)
-        print(f"% Statistical note ({kind}, {target_label} vs {baseline_label}), independent samples (n_a={mw['n_a']}, n_b={mw['n_b']}):")
-        if d_indep is not None:
-            print(f"%   Cohen's d = {d_indep:.3f}")
-        if mw["p_two_sided"] is not None:
-            print(f"%   Mann-Whitney U: U={mw['statistic']:.1f}, p={mw['p_two_sided']:.4f} (p_floor={mw['p_floor']:.4f})")
-
-    print("\n-- Cross-scenario (independent): baseline-establishing comparisons (EM only) --")
-    _independent_note("EM", "idle_no_tools", "docker_none", rittal_per_run)
-    _independent_note("EM", "docker_none", "docker_tools", rittal_per_run)
-
-    print("\n-- Cross-scenario (independent): each tool scenario vs TS1/RS1 baseline --")
-    for tool_key in ["docker_scaphandre", "docker_kepler", "docker_powerapi", "docker_joularjx", "docker_otjae"]:
-        _independent_note("EM", "docker_tools", tool_key, rittal_per_run)
-        _independent_note("RAPL", "docker_tools", tool_key, powercap_per_run)
 
 
 # Automatically collect all run folders (0, 0_run2, 0_run3, …) and all scenario subfolders.

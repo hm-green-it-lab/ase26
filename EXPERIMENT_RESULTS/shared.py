@@ -826,70 +826,31 @@ def scenario_matches_any(scenario_dir_name: str, suffixes: list[str]) -> bool:
 #
 # These helpers deliberately avoid a scipy dependency: at the small, fixed
 # sample sizes this project actually has (n=3 repetitions; at most n=12
-# session-paired observations for the Wilcoxon test), a hardcoded t-critical
-# lookup and a full sign-enumeration Wilcoxon are both exact and trivial to
-# compute, so pulling in scipy just for this would be unjustified.
+# session-paired observations for the Wilcoxon test), a full sign-enumeration
+# Wilcoxon is exact and trivial to compute, so pulling in scipy just for this
+# would be unjustified. Only the tests actually reported in the paper are
+# implemented here: paired Cohen's dz, one-sample Cohen's d, and the exact
+# Wilcoxon signed-rank test.
 
 import math
 from itertools import product as _product
-
-_T_CRITICAL_95_TWO_SIDED: dict[int, float] = {
-    1: 12.706204736174698, 2: 4.302652729911275, 3: 3.182446305283708,
-    4: 2.7764451051977987, 5: 2.5705818356363126, 6: 2.4469118487915749,
-    7: 2.3646242515928956, 8: 2.3060041350333704, 9: 2.2621571627409915,
-    10: 2.2281388519649385,
-    11: 2.201, 12: 2.179, 13: 2.160, 14: 2.145, 15: 2.131,
-    16: 2.120, 17: 2.110, 18: 2.101, 19: 2.093, 20: 2.086,
-    25: 2.060, 30: 2.042,
-}
-
-
-def t_critical_95(df: int) -> float | None:
-    """Two-sided 95% critical t-value for *df* degrees of freedom.
-
-    Hardcoded lookup table (covers df=1..20, plus 25/30, i.e. up to n=21
-    repetitions); linearly interpolated for df values between table
-    entries, and falls back to the standard-normal critical value (1.960)
-    for df > 30, since the t-distribution converges to it there. Returns
-    ``None`` only if df <= 0 (undefined, e.g. a single repetition).
-    """
-    if df is None or df <= 0:
-        return None
-    if df in _T_CRITICAL_95_TWO_SIDED:
-        return _T_CRITICAL_95_TWO_SIDED[df]
-    if df > 30:
-        return 1.960
-    keys = sorted(_T_CRITICAL_95_TWO_SIDED.keys())
-    for i in range(len(keys) - 1):
-        if keys[i] < df < keys[i + 1]:
-            x0, x1 = keys[i], keys[i + 1]
-            y0, y1 = _T_CRITICAL_95_TWO_SIDED[x0], _T_CRITICAL_95_TWO_SIDED[x1]
-            return y0 + (y1 - y0) * (df - x0) / (x1 - x0)
-    return 1.960
-
 
 def summarize_repetitions(values: list[float]) -> dict:
     """Summarize a list of *per-repetition* means for one condition.
 
     ``values`` should already be one scalar per repetition (e.g. one mean
     per run directory), not pooled raw per-second samples. Returns
-    ``{"n", "mean", "std", "ci_lo", "ci_hi", "ci_margin"}``; ``std``/CI
-    fields are ``None`` when n<2 (cannot estimate spread from a single
-    observation) rather than raising.
+    ``{"n", "mean", "std"}``; ``std`` is ``None`` when n<2 (cannot estimate
+    spread from a single observation) rather than raising.
     """
     vals = [float(v) for v in values if v is not None and not (isinstance(v, float) and math.isnan(v))]
     n = len(vals)
     if n == 0:
-        return {"n": 0, "mean": None, "std": None, "ci_lo": None, "ci_hi": None, "ci_margin": None}
+        return {"n": 0, "mean": None, "std": None}
     mean = float(np.mean(vals))
     if n < 2:
-        return {"n": n, "mean": mean, "std": None, "ci_lo": None, "ci_hi": None, "ci_margin": None}
-    std = float(np.std(vals, ddof=1))
-    t_crit = t_critical_95(n - 1)
-    if t_crit is None:
-        return {"n": n, "mean": mean, "std": std, "ci_lo": None, "ci_hi": None, "ci_margin": None}
-    margin = t_crit * std / math.sqrt(n)
-    return {"n": n, "mean": mean, "std": std, "ci_lo": mean - margin, "ci_hi": mean + margin, "ci_margin": margin}
+        return {"n": n, "mean": mean, "std": None}
+    return {"n": n, "mean": mean, "std": float(np.std(vals, ddof=1))}
 
 
 def cohens_d_paired(diffs: list[float]) -> float | None:
@@ -937,27 +898,6 @@ def cohens_d_one_sample(values: list[float]) -> float | None:
     if std == 0:
         return None
     return float(np.mean(vals)) / std
-
-
-def cohens_d_independent(sample_a: list[float], sample_b: list[float]) -> float | None:
-    """Independent-samples Cohen's d using the pooled standard deviation.
-
-    Fallback for comparisons where session-level pairing isn't available
-    (e.g. Container vs. VM, which are different physical setups/sessions).
-    Returns ``None`` if either sample has n<2 or the pooled std is zero.
-    """
-    a = [float(v) for v in sample_a if v is not None]
-    b = [float(v) for v in sample_b if v is not None]
-    n_a, n_b = len(a), len(b)
-    if n_a < 2 or n_b < 2:
-        return None
-    mean_a, mean_b = float(np.mean(a)), float(np.mean(b))
-    std_a, std_b = float(np.std(a, ddof=1)), float(np.std(b, ddof=1))
-    pooled_var = ((n_a - 1) * std_a ** 2 + (n_b - 1) * std_b ** 2) / (n_a + n_b - 2)
-    pooled_std = math.sqrt(pooled_var)
-    if pooled_std == 0:
-        return None
-    return (mean_a - mean_b) / pooled_std
 
 
 def _std_normal_cdf(x: float) -> float:
@@ -1026,91 +966,6 @@ def wilcoxon_signed_rank_exact(diffs: list[float]) -> dict:
     p_two_sided = min(1.0, 2 * min(le, ge))
     p_floor = 2.0 / (2 ** n_nonzero)
     return {"n": n, "n_nonzero": n_nonzero, "statistic": w_plus_observed, "p_two_sided": p_two_sided, "p_floor": p_floor, "method": "exact"}
-
-
-def mann_whitney_u_exact(sample_a: list[float], sample_b: list[float]) -> dict:
-    """Two-sided Mann-Whitney U test.
-
-    Unpaired analog of ``wilcoxon_signed_rank_exact``, used for comparisons
-    where the two samples cannot be treated as matched pairs (e.g. a tool
-    run and the baseline P_S run were collected as separate test setups,
-    not necessarily in the same experimental session). Exact under the null
-    distribution of rank sums via a subset-sum DP (equivalent to the method
-    scipy/R use for small samples) when the pooled sample is tie-free;
-    the DP assumes distinct integer ranks 1..n, so it is not valid once ties
-    are present. In that case, and for combined sample sizes beyond what
-    plain enumeration would be fast for, a normal approximation is used
-    instead, with the standard tie-correction term in the variance when
-    ties are present (this project's sample sizes, n up to ~15 per group,
-    never reach the large-n branch, but real repetition means could tie).
-
-    Returns ``{"n_a", "n_b", "statistic", "p_two_sided", "p_floor",
-    "method"}``, where ``statistic`` is the Mann-Whitney U statistic for
-    sample_a (U = W - n_a(n_a+1)/2, where W is the rank-sum of sample_a used
-    internally) and ``p_floor`` is the smallest attainable two-sided p-value
-    at this n_a/n_b (``None`` when the normal approximation is used, since
-    that p-value is not drawn from a discrete floor-bounded distribution).
-    """
-    a = [float(v) for v in sample_a if v is not None]
-    b = [float(v) for v in sample_b if v is not None]
-    n_a, n_b = len(a), len(b)
-    if n_a < 1 or n_b < 1:
-        return {"n_a": n_a, "n_b": n_b, "statistic": None, "p_two_sided": None, "p_floor": None, "method": None}
-
-    combined = np.array(a + b)
-    order = np.argsort(combined, kind="mergesort")
-    sorted_vals = combined[order]
-    n = n_a + n_b
-    ranks = np.empty(n)
-    tie_correction = 0.0
-    has_ties = False
-    i = 0
-    while i < n:
-        j = i
-        while j < n and sorted_vals[j] == sorted_vals[i]:
-            j += 1
-        avg_rank = (i + 1 + j) / 2.0
-        for k in range(i, j):
-            ranks[order[k]] = avg_rank
-        t = j - i
-        if t > 1:
-            has_ties = True
-            tie_correction += t ** 3 - t
-        i = j
-    w_a_observed = float(np.sum(ranks[:n_a]))
-    u_a_observed = w_a_observed - n_a * (n_a + 1) / 2.0
-
-    if has_ties or n > 60:
-        mean_w = n_a * (n + 1) / 2.0
-        if has_ties:
-            var_w = (n_a * n_b / 12.0) * ((n + 1) - tie_correction / (n * (n - 1)))
-            method = "normal-approx-tie-corrected"
-        else:
-            var_w = n_a * n_b * (n + 1) / 12.0
-            method = "normal-approx"
-        z = (w_a_observed - mean_w) / math.sqrt(var_w) if var_w > 0 else 0.0
-        p_two_sided = min(1.0, 2 * (1 - _std_normal_cdf(abs(z))))
-        return {"n_a": n_a, "n_b": n_b, "statistic": u_a_observed, "p_two_sided": p_two_sided, "p_floor": None, "method": method}
-
-    min_w = n_a * (n_a + 1) // 2
-    max_w = min_w + n_a * n_b
-    dp = [[0] * (max_w + 1) for _ in range(n_a + 1)]
-    dp[0][0] = 1
-    for value in range(1, n + 1):
-        for k in range(min(n_a, value), 0, -1):
-            prev = dp[k - 1]
-            row = dp[k]
-            for s in range(max_w, value - 1, -1):
-                if prev[s - value]:
-                    row[s] += prev[s - value]
-    counts = dp[n_a]
-    total = float(sum(counts))
-    w_int = int(round(w_a_observed))
-    le = float(sum(counts[:w_int + 1])) / total if w_int >= 0 else 0.0
-    ge = float(sum(counts[w_int:])) / total if w_int <= max_w else 0.0
-    p_two_sided = min(1.0, 2 * min(le, ge))
-    p_floor = 2.0 / total
-    return {"n_a": n_a, "n_b": n_b, "statistic": u_a_observed, "p_two_sided": p_two_sided, "p_floor": p_floor, "method": "exact"}
 
 
 def per_run_means(scenario_dict: dict, scenario_key: str, subkey: str) -> dict:

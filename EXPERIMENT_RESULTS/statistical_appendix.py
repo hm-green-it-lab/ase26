@@ -6,17 +6,18 @@ result tables and don't naturally belong to any single table's footnote:
 
   1. Tool power (Kepler/Scaphandre/PowerAPI at container level) as a
      percentage of external-meter (EM/Rittal) ground truth, per environment
-     and load level, with mean/std/CI and an independent-samples Cohen's d +
-     Mann-Whitney U test on the (tool - EM) gap; the tool and EM values come
-     from separate scenarios, so neither session pairing nor the one-sample
-     load-centered treatment used elsewhere applies here. This directly
+     and load level, with mean and standard deviation across repetitions.
+     No significance test is reported here: the tool and EM values come from
+     separate scenarios, so none of the tests used elsewhere in the paper
+     applies, and the percentages are reported descriptively. This directly
      backs the abstract's headline accuracy claim ("18-67% accuracy ...
      against external measurements"), which none of the per-table
      statistical notes cover directly (those compare tools against P_S/RAPL,
      not against EM).
-  2. Container vs VM comparison for OTJAE and JoularJX process power, using
-     an independent-sample Cohen's d (Container and VM are different
-     physical sessions, not pairable run-for-run).
+  2. Container vs VM comparison for OTJAE and JoularJX process power, reported
+     as mean and standard deviation per environment. Container and VM are
+     different physical sessions and are not pairable run-for-run, so no
+     significance test is reported for this comparison either.
 
 Reuses collect_data_by_load_level from the Container-level script (Kepler/
 Scaphandre/PowerAPI + EM) and process_docker_otjae from the Process-level
@@ -38,8 +39,6 @@ from shared import (
     parse_joularjx_power,
     scenario_matches,
     summarize_repetitions,
-    cohens_d_independent,
-    mann_whitney_u_exact,
     fmt_mean_std,
     per_run_means,
 )
@@ -115,13 +114,7 @@ def _print_tool_vs_em_section(env_data):
             if not session_pcts[tool]:
                 continue
             pooled_pct = summarize_repetitions(session_pcts[tool])
-            d_indep = cohens_d_independent(session_tool_vals[tool], session_em_vals[tool])
-            mw = mann_whitney_u_exact(session_tool_vals[tool], session_em_vals[tool])
             print(f"    {tool}: {fmt_mean_std(pooled_pct['mean'], pooled_pct['std'], unit='%')} of EM overall (n={pooled_pct['n']})")
-            if d_indep is not None:
-                print(f"      Cohen's d (tool vs EM, independent) = {d_indep:.3f}")
-            if mw["p_two_sided"] is not None:
-                print(f"      Mann-Whitney U vs EM: U={mw['statistic']:.1f}, p={mw['p_two_sided']:.4f} (p_floor={mw['p_floor']:.4f})")
 
 
 def _collect_process_tool_by_env(exp_results, env_names, trim_seconds=60, included_load_levels=None):
@@ -208,12 +201,9 @@ def _print_container_vs_vm_section(process_data):
             continue
         c_stats = summarize_repetitions(container_vals)
         v_stats = summarize_repetitions(vm_vals)
-        d_indep = cohens_d_independent(container_vals, vm_vals)
         print(f"\n  {tool}:")
         print(f"    Container: {fmt_mean_std(c_stats['mean'], c_stats['std'])} (n={c_stats['n']})")
         print(f"    VM:        {fmt_mean_std(v_stats['mean'], v_stats['std'])} (n={v_stats['n']})")
-        if d_indep is not None:
-            print(f"    Cohen's d (independent, Container - VM) = {d_indep:.3f}")
 
 
 def main():
