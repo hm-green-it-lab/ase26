@@ -38,7 +38,7 @@ from shared import (
     scenario_matches_any,
     strip_rs_suffix,
     summarize_repetitions,
-    cohens_d_paired,
+    cohens_d_one_sample,
     wilcoxon_signed_rank_exact,
     fmt_mean_std,
 )
@@ -1075,8 +1075,8 @@ def print_rs_load_distribution_table(env_data_store):
     unaware of RS2's per-container CPU-socket pinning, causing it to
     attribute an almost equal (~50/50) power share regardless of the actual
     configured load imbalance, while other tools correctly track the split.
-    The measured-vs-target deviation, tested here via a paired Cohen's dz and
-    an exact Wilcoxon signed-rank test (session-paired across all load
+    The measured-vs-target deviation, tested here via a one-sample Cohen's d and
+    an exact Wilcoxon signed-rank test (pooled across all load
     levels/distribution variants within an environment), quantifies that
     claim instead of leaving it purely qualitative.
     """
@@ -1091,9 +1091,10 @@ def print_rs_load_distribution_table(env_data_store):
     print("            Environment & Load & Target Split (C1/C2) & Tool & P\\textsubscript{C1} & P\\textsubscript{C2} & Measured Split C1 \\\\")
     print("            \\hline")
 
-    # Session-paired (measured C1 split % - target C1 split %) across all
-    # load levels/distribution variants, per environment per tool -- for the
-    # statistical notes below the table.
+    # One-sample deviations (measured C1 split % - target C1 split %), pooled
+    # across all load levels/distribution variants, per environment per tool --
+    # for the statistical notes below the table. The target split is a fixed,
+    # JMeter-configured constant, so these deviations stay independent.
     session_deviation_by_tool = defaultdict(lambda: defaultdict(list))
 
     for env_key, data_by_load in env_data_store.items():
@@ -1134,16 +1135,16 @@ def print_rs_load_distribution_table(env_data_store):
     print("    }")
     print("\\end{table*}")
 
-    # --- Statistical notes: measured C1 split % vs target C1 split %, session-paired ---
+    # --- Statistical notes: measured C1 split % vs target C1 split %, one-sample vs fixed target ---
     for env_key, tool_devs in session_deviation_by_tool.items():
         for tool_name, deviations in tool_devs.items():
             if not deviations:
                 continue
-            d_paired = cohens_d_paired(deviations)
+            d_one_sample = cohens_d_one_sample(deviations)
             wilcoxon = wilcoxon_signed_rank_exact(deviations)
-            print(f"% Statistical note ({env_key}, {tool_name} measured C1 split % vs target C1 split %), session-paired (n={wilcoxon['n_nonzero']}):")
-            if d_paired is not None:
-                print(f"%   Cohen's dz = {d_paired:.3f}")
+            print(f"% Statistical note ({env_key}, {tool_name} measured C1 split % vs target C1 split %), one-sample deviations from the fixed target (n={wilcoxon['n_nonzero']}):")
+            if d_one_sample is not None:
+                print(f"%   Cohen's d = {d_one_sample:.3f}")
             if wilcoxon["p_two_sided"] is not None:
                 print(f"%   Wilcoxon signed-rank: W+={wilcoxon['statistic']:.1f}, p={wilcoxon['p_two_sided']:.4f} (p_floor={wilcoxon['p_floor']:.4f})")
 

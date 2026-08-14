@@ -296,6 +296,10 @@ def create_power_consumption_boxplot(data_dirs, output_path, custom_labels=None,
     # axis here, playing the same role load level does in the other tables.
     print("\n-- Same-execution (paired): P_EM vs P_S within each scenario --")
     all_scenario_diffs = []
+    # Count only the scenarios that actually contribute differences: the loop
+    # below skips any scenario missing EM or RAPL data, so len(scenario_order)
+    # would overstate the pooled note's scenario count (and contradict its n).
+    contributing_scenarios = 0
     for scenario_key in scenario_order:
         em = rittal_per_run.get(scenario_key)
         s = powercap_per_run.get(scenario_key)
@@ -306,6 +310,7 @@ def create_power_consumption_boxplot(data_dirs, output_path, custom_labels=None,
             continue
         diffs = [em[r] - s[r] for r in common_runs]
         all_scenario_diffs.extend(diffs)
+        contributing_scenarios += 1
         d_paired = cohens_d_paired(diffs)
         wilcoxon = wilcoxon_signed_rank_exact(diffs)
         label = scenario_labels.get(scenario_key, scenario_key)
@@ -318,7 +323,7 @@ def create_power_consumption_boxplot(data_dirs, output_path, custom_labels=None,
     if all_scenario_diffs:
         d_pooled = cohens_d_paired(all_scenario_diffs)
         wilcoxon_pooled = wilcoxon_signed_rank_exact(all_scenario_diffs)
-        print(f"% Statistical note (pooled across all {len(scenario_order)} tool scenarios): P_EM vs P_S, same-execution paired (n={wilcoxon_pooled['n_nonzero']}):")
+        print(f"% Statistical note (pooled across all {contributing_scenarios} tool scenarios): P_EM vs P_S, same-execution paired (n={wilcoxon_pooled['n_nonzero']}):")
         if d_pooled is not None:
             print(f"%   Cohen's dz = {d_pooled:.3f}")
         if wilcoxon_pooled["p_two_sided"] is not None:

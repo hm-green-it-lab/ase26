@@ -19,7 +19,7 @@ from collections import defaultdict
 
 from shared import (
     build_run_dirs, discover_environments,
-    summarize_repetitions, fmt_mean_std, cohens_d_paired, wilcoxon_signed_rank_exact,
+    summarize_repetitions, fmt_mean_std, cohens_d_one_sample, wilcoxon_signed_rank_exact,
 )
 
 METHODS = ["GET", "POST", "DELETE"]
@@ -174,14 +174,14 @@ def generate_table_for_env(exp_results, env_name):
             deviations = pooled_deviation_by_suffix_method.get((suffix, method), [])
             if not deviations:
                 continue
-            d_paired = cohens_d_paired(deviations)
+            d_one_sample = cohens_d_one_sample(deviations)
             wilcoxon = wilcoxon_signed_rank_exact(deviations)
             lines.append(
                 f"% Statistical note ({env_name}, {col_label} {method} vs None), "
                 f"one-sample Wilcoxon test on deviations from the same-load-level baseline mean (n={wilcoxon['n_nonzero']}):"
             )
-            if d_paired is not None:
-                lines.append(f"%   Cohen's dz = {d_paired:.3f}")
+            if d_one_sample is not None:
+                lines.append(f"%   Cohen's d = {d_one_sample:.3f}")
             if wilcoxon["p_two_sided"] is not None:
                 lines.append(f"%   Wilcoxon signed-rank: W+={wilcoxon['statistic']:.1f}, p={wilcoxon['p_two_sided']:.4f} (p_floor={wilcoxon['p_floor']:.4f})")
 

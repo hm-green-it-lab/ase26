@@ -16,7 +16,7 @@ from shared import (
     read_measurement_csv,
     build_run_dirs,
     summarize_repetitions,
-    cohens_d_paired,
+    cohens_d_one_sample,
     wilcoxon_signed_rank_exact,
     fmt_mean_std,
 )
@@ -315,11 +315,11 @@ def main():
             for run_name, deviations in deviations_by_tool.items():
                 if not deviations:
                     continue
-                d_paired = cohens_d_paired(deviations)
+                d_one_sample = cohens_d_one_sample(deviations)
                 wilcoxon = wilcoxon_signed_rank_exact(deviations)
                 print(f"  % Statistical note ({env_key}, {run_name} vs none), one-sample Wilcoxon test on deviations from the same-load-level baseline mean (n={wilcoxon['n_nonzero']}):")
-                if d_paired is not None:
-                    print(f"  %   Cohen's dz = {d_paired:.3f}")
+                if d_one_sample is not None:
+                    print(f"  %   Cohen's d = {d_one_sample:.3f}")
                 if wilcoxon["p_two_sided"] is not None:
                     print(f"  %   Wilcoxon signed-rank: W+={wilcoxon['statistic']:.1f}, p={wilcoxon['p_two_sided']:.4f} (p_floor={wilcoxon['p_floor']:.4f})")
 

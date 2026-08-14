@@ -14,7 +14,7 @@ from collections import defaultdict
 from shared import (
     read_measurement_csv,
     build_run_dirs, get_jmeter_time_bounds, extract_service_pids,
-    summarize_repetitions, fmt_mean_std, cohens_d_paired, wilcoxon_signed_rank_exact,
+    summarize_repetitions, fmt_mean_std, cohens_d_one_sample, wilcoxon_signed_rank_exact,
 )
 
 
@@ -102,7 +102,7 @@ def generate_table_for_env(exp_results, env_name):
     # same load-driven-variance confound found in the power-distribution
     # barchart. Subtracting each load level's own CPU_none mean first
     # (mirroring the RS2/RS3 deviation-from-target-constant design)
-    # isolates the overhead signal before pooling, so a paired dz +
+    # isolates the overhead signal before pooling, so a one-sample d +
     # Wilcoxon signed-rank (one-sample-style, vs 0) is used instead of an
     # independent-samples test.
     pooled_deviation_by_suffix = defaultdict(list)
@@ -201,11 +201,11 @@ def generate_table_for_env(exp_results, env_name):
             deviations = pooled_deviation_by_suffix.get(suffix, [])
             if not deviations:
                 continue
-            d_paired = cohens_d_paired(deviations)
+            d_one_sample = cohens_d_one_sample(deviations)
             wilcoxon = wilcoxon_signed_rank_exact(deviations)
             lines.append(f"% Statistical note ({env_name}, {col_label} vs CPU_none), one-sample Wilcoxon test on deviations from the same-load-level baseline mean (n={wilcoxon['n_nonzero']}):")
-            if d_paired is not None:
-                lines.append(f"%   Cohen's dz = {d_paired:.3f}")
+            if d_one_sample is not None:
+                lines.append(f"%   Cohen's d = {d_one_sample:.3f}")
             if wilcoxon["p_two_sided"] is not None:
                 lines.append(f"%   Wilcoxon signed-rank: W+={wilcoxon['statistic']:.1f}, p={wilcoxon['p_two_sided']:.4f} (p_floor={wilcoxon['p_floor']:.4f})")
 

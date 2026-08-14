@@ -29,7 +29,7 @@ from shared import (
     scenario_matches,
     scenario_matches_any,
     summarize_repetitions,
-    cohens_d_paired,
+    cohens_d_one_sample,
     wilcoxon_signed_rank_exact,
     fmt_mean_std,
     per_run_means,
@@ -489,9 +489,10 @@ def main():
     # itself ranges over ~50W across load levels; centering each tool
     # repetition against its own load level's P_S mean first (mirroring the
     # CPU-utilization-overhead script's deviation-from-baseline design)
-    # isolates the accuracy signal before pooling, so a paired dz +
-    # Wilcoxon signed-rank (one-sample-style, vs 0) is used instead of an
-    # independent-samples test.
+    # isolates the accuracy signal before pooling, so a one-sample d +
+    # Wilcoxon signed-rank (vs 0) is used instead of an independent-samples
+    # test. These values share a load level's estimated P_S mean, so they are
+    # not matched pairs and the effect size is reported as d, not dz.
     pooled_relative_error_by_tool = {
         env_key: {tool: [] for tool in ("kepler", "scaphandre", "powerapi")}
         for env_key in env_data_store
@@ -565,11 +566,11 @@ def main():
         for tool_name, rel_errors in tool_values.items():
             if not rel_errors:
                 continue
-            d_paired = cohens_d_paired(rel_errors)
+            d_one_sample = cohens_d_one_sample(rel_errors)
             wilcoxon = wilcoxon_signed_rank_exact(rel_errors)
             print(f"% Statistical note ({env_key}, {tool_name} vs P_S), one-sample Wilcoxon test on relative error (P_tool-P_S)/P_S from the same-load-level P_S mean (n={wilcoxon['n_nonzero']}):")
-            if d_paired is not None:
-                print(f"%   Cohen's dz = {d_paired:.3f}")
+            if d_one_sample is not None:
+                print(f"%   Cohen's d = {d_one_sample:.3f}")
             if wilcoxon["p_two_sided"] is not None:
                 print(f"%   Wilcoxon signed-rank: W+={wilcoxon['statistic']:.1f}, p={wilcoxon['p_two_sided']:.4f} (p_floor={wilcoxon['p_floor']:.4f})")
 

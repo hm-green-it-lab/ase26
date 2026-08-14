@@ -895,11 +895,41 @@ def summarize_repetitions(values: list[float]) -> dict:
 def cohens_d_paired(diffs: list[float]) -> float | None:
     """Paired Cohen's dz = mean(diffs) / std(diffs) (ddof=1).
 
-    ``diffs`` should be matched-pair differences (e.g. session-matched
-    Tool A - Tool B). Returns ``None`` if n<2 or the differences have zero
-    variance (dz is undefined, not infinite, in that degenerate case).
+    ``diffs`` must be matched-pair differences between two quantities recorded
+    within the same execution (e.g. P_EM - P_S in one run, or a tool's summed
+    transaction power - its own process power in one run). For one-sample
+    deviations from an estimated baseline or a fixed target, use
+    :func:`cohens_d_one_sample` instead, which reports ``d`` rather than ``dz``.
+    Returns ``None`` if n<2 or the differences have zero variance (dz is
+    undefined, not infinite, in that degenerate case).
     """
     vals = [float(v) for v in diffs if v is not None]
+    n = len(vals)
+    if n < 2:
+        return None
+    std = float(np.std(vals, ddof=1))
+    if std == 0:
+        return None
+    return float(np.mean(vals)) / std
+
+
+def cohens_d_one_sample(values: list[float]) -> float | None:
+    """One-sample Cohen's d = mean(values) / std(values) (ddof=1), tested against zero.
+
+    ``values`` are one-sample observations that are *not* matched-pair
+    differences, so the appropriate label is ``d`` rather than ``dz``:
+
+    * load-centered deviations or relative errors, expressed relative to a
+      load level's *estimated* reference mean (these are not independent
+      across the repetitions of one load level, which share that estimate); or
+    * deviations from a fixed, known target such as the JMeter-configured
+      container split (these do remain independent).
+
+    Use :func:`cohens_d_paired` only where two quantities are recorded within
+    the same execution (e.g. P_EM vs P_S, or a tool's summed transaction power
+    vs its own process power). Returns ``None`` if n<2 or zero variance.
+    """
+    vals = [float(v) for v in values if v is not None]
     n = len(vals)
     if n < 2:
         return None

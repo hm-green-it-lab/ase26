@@ -6,10 +6,12 @@ result tables and don't naturally belong to any single table's footnote:
 
   1. Tool power (Kepler/Scaphandre/PowerAPI at container level) as a
      percentage of external-meter (EM/Rittal) ground truth, per environment
-     and load level, with mean/std/CI and a session-paired Cohen's dz +
-     exact Wilcoxon signed-rank test on the (tool - EM) gap. This directly
+     and load level, with mean/std/CI and an independent-samples Cohen's d +
+     Mann-Whitney U test on the (tool - EM) gap; the tool and EM values come
+     from separate scenarios, so neither session pairing nor the one-sample
+     load-centered treatment used elsewhere applies here. This directly
      backs the abstract's headline accuracy claim ("18-67% accuracy ...
-     compared to external measurements"), which none of the per-table
+     against external measurements"), which none of the per-table
      statistical notes cover directly (those compare tools against P_S/RAPL,
      not against EM).
   2. Container vs VM comparison for OTJAE and JoularJX process power, using
