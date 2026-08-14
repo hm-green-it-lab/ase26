@@ -80,7 +80,7 @@ def _compute_pcpumin_pcpumax(exp_results, env_name, trim_seconds=60):
 
 def _print_tool_vs_em_section(env_data):
     """Section 1: Kepler/Scaphandre/PowerAPI power as % of EM (Rittal),
-    per environment and load level, plus a pooled independent-samples summary."""
+    per environment and load level, plus a summary pooled across load levels."""
     print("\n" + "=" * 70)
     print("SECTION 1: Tool power as % of EM (Rittal) ground truth")
     print("=" * 70)
@@ -91,8 +91,6 @@ def _print_tool_vs_em_section(env_data):
         if not sorted_loads:
             continue
         session_pcts = {t: [] for t in tools}
-        session_tool_vals = {t: [] for t in tools}
-        session_em_vals = {t: [] for t in tools}
         print(f"\n--- Environment: {env_key} ---")
         for load_level, scenario_dict in sorted_loads:
             em_by_run = per_run_means(scenario_dict, 'tools', 'rittal')
@@ -105,11 +103,9 @@ def _print_tool_vs_em_section(env_data):
                 pcts = [tool_by_run[r] / em_by_run[r] * 100 for r in common_runs if em_by_run[r] != 0]
                 pct_stats = summarize_repetitions(pcts)
                 session_pcts[tool].extend(pcts)
-                session_tool_vals[tool].extend(tool_by_run.values())
-                session_em_vals[tool].extend(em_by_run.values())
                 print(f"    {tool}: {fmt_mean_std(pct_stats['mean'], pct_stats['std'], unit='%')} of EM (n={pct_stats['n']})")
 
-        print(f"\n  --- Pooled across all load levels (independent samples) ---")
+        print(f"\n  --- Pooled across all load levels ---")
         for tool in tools:
             if not session_pcts[tool]:
                 continue
@@ -182,10 +178,12 @@ def _collect_process_tool_by_env(exp_results, env_names, trim_seconds=60, includ
 
 
 def _print_container_vs_vm_section(process_data):
-    """Section 2: Container vs VM comparison (independent-sample Cohen's d)
-    for OTJAE and JoularJX process power, pooled across load levels."""
+    """Section 2: Container vs VM comparison of OTJAE and JoularJX process
+    power, pooled across load levels and reported as mean and standard
+    deviation. Container and VM are separate physical sessions and are not
+    pairable run-for-run, so no significance test is reported."""
     print("\n" + "=" * 70)
-    print("SECTION 2: Container vs VM process power (independent samples)")
+    print("SECTION 2: Container vs VM process power")
     print("=" * 70)
     if "Container" not in process_data or "VM" not in process_data:
         print("  Container and/or VM data not available; skipping.")
